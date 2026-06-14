@@ -48,7 +48,7 @@ class SmartFetcher:
         extract_strategy: str = ExtractStrategy.TRAFILATURA,
         **opts,
     ) -> FetchResult:
-        """Fetch one URL and extract article content with trafilatura."""
+        """Fetch one URL and extract article content."""
         if not self._started:
             await self.start()
 

@@ -6,6 +6,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
+import article_reader.content_extractor as content_extractor
 from article_reader import (
     ContentExtractor,
     ExtractedContent,
@@ -46,6 +47,31 @@ def test_content_extractor_normalizes_unsupported_strategy():
 
     assert "article body text" in result.content
     assert result.method == "trafilatura"
+
+
+def test_content_extractor_uses_scrapling_fallback_for_short_trafilatura_result(monkeypatch):
+    if content_extractor.trafilatura is None:
+        pytest.skip("trafilatura is not installed")
+
+    noisy_html = f"""
+    <html>
+      <head><title>Fallback Title</title></head>
+      <body>
+        <article>
+          <div>{LONG_PARAGRAPH}</div>
+          <div>{LONG_PARAGRAPH}</div>
+        </article>
+      </body>
+    </html>
+    """
+
+    monkeypatch.setattr(content_extractor.trafilatura, "extract", lambda *args, **kwargs: "")
+    monkeypatch.setattr(content_extractor.trafilatura, "extract_metadata", lambda *args, **kwargs: None)
+
+    result = ContentExtractor(strategy="trafilatura").extract(noisy_html, "https://example.com/fallback")
+
+    assert "article body text" in result.content
+    assert result.method == "scrapling_fallback_short"
 
 
 def test_link_extractor_uses_scrapling_dom():

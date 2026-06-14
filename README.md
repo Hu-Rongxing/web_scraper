@@ -4,7 +4,7 @@
 
 The project is intentionally scoped to two extraction engines:
 
-- Article detail text: `trafilatura`
+- Article detail text: `trafilatura`, with Scrapling DOM text fallback when trafilatura is unavailable, errors, or returns too little text
 - News/list links: Scrapling DOM selectors through `LinkExtractor`
 
 Fetching, rendering, proxy assignment, and pipeline degradation remain in the existing pipeline layer. The extraction layer stays small so it is easier to test and replace internally without changing callers.
@@ -37,7 +37,7 @@ print(result.method)
 - `raw_html`
 - `method`
 
-The only production article extraction strategy is `trafilatura`. The `extract_strategy` argument is retained for compatibility; unsupported values are normalized to `trafilatura`.
+The primary production article extraction strategy is `trafilatura`. Scrapling is the built-in fallback. The `extract_strategy` argument is retained for compatibility; unsupported values are normalized to `trafilatura`.
 
 ### Extract List Links
 
@@ -80,19 +80,19 @@ asyncio.run(main())
 
 ```text
 .
-├── content_extractor.py      # trafilatura-only article extraction
-├── link_extractor.py         # Scrapling DOM link extraction
-├── fetchers/
-│   └── smart.py              # public async fetch facade
-├── pipelines/                # fetch/render/degradation managers
-├── proxies/                  # proxy pool implementations
-├── examples/                 # runnable examples
-├── test/                     # tests and integration diagnostics
-│   ├── output/               # generated test reports, ignored
-│   └── output_paths.py       # shared output path helper
-├── docs/                     # testing and verification notes
-├── models.py                 # result models
-└── config.py                 # runtime configuration
+|-- content_extractor.py      # trafilatura article extraction with Scrapling fallback
+|-- link_extractor.py         # Scrapling DOM link extraction
+|-- fetchers/
+|   `-- smart.py              # public async fetch facade
+|-- pipelines/                # fetch/render/degradation managers
+|-- proxies/                  # proxy pool implementations
+|-- examples/                 # runnable examples
+|-- test/                     # tests and integration diagnostics
+|   |-- output/               # generated test reports, ignored
+|   `-- output_paths.py       # shared output path helper
+|-- docs/                     # testing and verification notes
+|-- models.py                 # result models
+`-- config.py                 # runtime configuration
 ```
 
 Generated outputs, browser profiles, screenshots, HTML captures, and test reports are ignored by default.

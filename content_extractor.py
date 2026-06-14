@@ -1,9 +1,9 @@
 # -*- coding: utf-8 -*-
 """Article content extraction.
 
-Production article extraction is intentionally limited to trafilatura. Scrapling
-is used by the fetch/render layers and by LinkExtractor for DOM link discovery;
-it is not a second article text engine.
+Production article extraction uses trafilatura first and Scrapling DOM text as
+the fallback. This keeps article extraction scoped to the two project-standard
+engines and avoids readability-lxml as a separate extraction path.
 """
 
 from __future__ import annotations
@@ -18,6 +18,11 @@ try:
     import trafilatura
 except ImportError:  # pragma: no cover - depends on local environment
     trafilatura = None
+
+try:
+    from scrapling import Selector
+except ImportError:  # pragma: no cover - depends on local environment
+    Selector = None
 
 
 @dataclass
@@ -34,9 +39,16 @@ class ExtractedContent:
 
 
 class ContentExtractor:
-    """Extract readable article text with trafilatura only."""
+    """Extract readable article text with trafilatura and Scrapling fallback."""
 
     SUPPORTED_STRATEGY = "trafilatura"
+    FALLBACK_SELECTORS = (
+        "article",
+        '[data-testid="article-body"]',
+        '[role="article"]',
+        "main",
+        "body",
+    )
 
     def __init__(self, strategy: Optional[str] = None):
         self._strategy = strategy or DEFAULT_EXTRACT_STRATEGY
@@ -55,12 +67,8 @@ class ContentExtractor:
             return ExtractedContent(method="trafilatura_empty")
 
         if trafilatura is None:
-            logger.error("trafilatura is not installed; article extraction disabled")
-            return ExtractedContent(
-                title=self._extract_title_from_html(html),
-                raw_html=html,
-                method="trafilatura_unavailable",
-            )
+            logger.error("trafilatura is not installed; falling back to Scrapling")
+            return self._extract_scrapling(html, method="scrapling_fallback_unavailable")
 
         try:
             content = trafilatura.extract(
@@ -75,11 +83,7 @@ class ContentExtractor:
             metadata = trafilatura.extract_metadata(html, default_url=url)
         except Exception as exc:
             logger.warning("trafilatura extraction failed: %s", exc)
-            return ExtractedContent(
-                title=self._extract_title_from_html(html),
-                raw_html=html,
-                method="trafilatura_error",
-            )
+            return self._extract_scrapling(html, method="scrapling_fallback_error")
 
         title = ""
         author = None
@@ -92,13 +96,17 @@ class ContentExtractor:
             title = self._extract_title_from_html(html)
 
         if not content or len(content.strip()) < MIN_CONTENT_LENGTH:
-            return ExtractedContent(
-                title=self._clean_title(title),
+            fallback = self._extract_scrapling(
+                html,
+                method="scrapling_fallback_short",
+                title=title,
                 author=author,
                 date=date,
-                raw_html=html,
-                method="trafilatura_short",
             )
+            if fallback.content:
+                return fallback
+            fallback.method = "trafilatura_short"
+            return fallback
 
         return ExtractedContent(
             title=self._clean_title(title),
@@ -107,6 +115,58 @@ class ContentExtractor:
             date=date,
             raw_html=html,
             method="trafilatura",
+        )
+
+    def _extract_scrapling(
+        self,
+        html: str,
+        *,
+        method: str,
+        title: str = "",
+        author: Optional[str] = None,
+        date: Optional[str] = None,
+    ) -> ExtractedContent:
+        """Fallback article extraction using Scrapling DOM text."""
+        if not html:
+            return ExtractedContent(method=method)
+
+        if Selector is None:
+            logger.error("scrapling is not installed; fallback extraction disabled")
+            return ExtractedContent(
+                title=self._clean_title(title or self._extract_title_from_html(html)),
+                author=author,
+                date=date,
+                raw_html=html,
+                method=f"{method}_unavailable",
+            )
+
+        try:
+            doc = Selector(html)
+            for css in self.FALLBACK_SELECTORS:
+                element = next(iter(doc.css(css)), None)
+                if not element:
+                    continue
+                raw_text = element.get_all_text() if hasattr(element, "get_all_text") else element.text
+                content = self._clean_text(str(raw_text or ""))
+                if len(content) >= MIN_CONTENT_LENGTH:
+                    return ExtractedContent(
+                        title=self._clean_title(title or self._extract_title_from_html(html)),
+                        content=content,
+                        author=author,
+                        date=date,
+                        raw_html=html,
+                        method=method,
+                    )
+        except Exception as exc:
+            logger.warning("Scrapling fallback extraction failed: %s", exc)
+            method = f"{method}_error"
+
+        return ExtractedContent(
+            title=self._clean_title(title or self._extract_title_from_html(html)),
+            author=author,
+            date=date,
+            raw_html=html,
+            method=method,
         )
 
     @staticmethod
@@ -118,6 +178,11 @@ class ContentExtractor:
         title = re.sub(r"\s+", " ", title).strip()
         title = re.sub(r"\s*[-|]\s*(?:Home|News|The .*|.*\.com|.*\.org)\s*$", "", title, flags=re.I)
         return title
+
+    @staticmethod
+    def _clean_text(text: str) -> str:
+        text = re.sub(r"\s+", " ", text or "").strip()
+        return text
 
     @staticmethod
     def _extract_title_from_html(html: str) -> str:

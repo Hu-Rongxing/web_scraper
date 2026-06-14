@@ -1,18 +1,16 @@
-# -*- coding: utf-8 -*-
+﻿# -*- coding: utf-8 -*-
 """
-WSJ / cn.WSJ 专项优化测试
-测试维度：
-1. P4 wait 时间: 5s(default) / 8s / 12s
-2. 提取策略: trafilatura vs readability-lxml
+WSJ / cn.WSJ 涓撻」浼樺寲娴嬭瘯
+娴嬭瘯缁村害锛?1. P4 wait 鏃堕棿: 5s(default) / 8s / 12s
+2. 鎻愬彇绛栫暐: trafilatura vs Scrapling fallback
 3. wait_until: domcontentloaded vs networkidle
-4. URL 参数: RSS feed / direct
+4. URL 鍙傛暟: RSS feed / direct
 """
 
 import asyncio
 import sys
 import time
 import json
-import re
 from pathlib import Path
 from datetime import datetime
 from dataclasses import dataclass
@@ -50,7 +48,7 @@ class TestConfig:
     name: str
     wait_ms: int
     wait_until: str  # "domcontentloaded" | "networkidle" | "load"
-    extractor: str   # "trafilatura" | "readability"
+    extractor: str   # "trafilatura" | "scrapling"
 
 
 @dataclass
@@ -136,14 +134,13 @@ async def run_single_test(
                     )
             
             # Extract with configured extractor
-            if config.extractor == "readability":
-                from readability import Document
-                doc = Document(html)
-                content = doc.summary()
-                # Strip HTML tags from readability output for clean text
-                content = re.sub(r'<[^>]+>', ' ', content)
-                content = re.sub(r'\s+', ' ', content).strip()
-                extracted_title = doc.title() or title
+            if config.extractor == "scrapling":
+                extracted = ContentExtractor(strategy="trafilatura")._extract_scrapling(
+                    html,
+                    method="scrapling_diagnostic",
+                )
+                content = extracted.content
+                extracted_title = extracted.title or title
             else:
                 extracted = ContentExtractor(strategy="trafilatura").extract(html, url)
                 content = extracted.content
@@ -189,12 +186,12 @@ TEST_CONFIGS = [
     # Longer wait with domcontentloaded
     TestConfig("wait_10s", wait_ms=10000, wait_until="domcontentloaded", extractor="trafilatura"),
     
-    # readability extractor (5s + 10s)
-    TestConfig("readability_5s", wait_ms=5000, wait_until="domcontentloaded", extractor="readability"),
-    TestConfig("readability_10s", wait_ms=10000, wait_until="domcontentloaded", extractor="readability"),
+    # Scrapling fallback extractor (5s + 10s)
+    TestConfig("scrapling_5s", wait_ms=5000, wait_until="domcontentloaded", extractor="scrapling"),
+    TestConfig("scrapling_10s", wait_ms=10000, wait_until="domcontentloaded", extractor="scrapling"),
     
-    # Best combo: readability + longer + load (waits for all resources)
-    TestConfig("readability_10s_load", wait_ms=10000, wait_until="load", extractor="readability"),
+    # Best combo: Scrapling fallback + longer + load (waits for all resources)
+    TestConfig("scrapling_10s_load", wait_ms=10000, wait_until="load", extractor="scrapling"),
 ]
 
 
@@ -331,3 +328,4 @@ async def main():
 
 if __name__ == "__main__":
     asyncio.run(main())
+

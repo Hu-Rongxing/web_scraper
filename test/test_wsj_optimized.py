@@ -2,7 +2,7 @@
 """
 WSJ optimization test - simplified.
 Uses the standard P4 pipeline but captures HTML for post-hoc comparison:
-1. trafilatura vs readability-lxml extraction quality
+1. trafilatura vs Scrapling fallback extraction quality
 2. RSS vs direct URL effectiveness
 """
 
@@ -34,17 +34,22 @@ WSJ_TEST_URLS = [
 ]
 
 
-def extract_readability(html: str) -> dict:
-    """Extract content using readability-lxml."""
+def extract_scrapling(html: str) -> dict:
+    """Extract content using Scrapling DOM text fallback."""
     try:
-        from readability import Document
-        doc = Document(html)
-        content_html = doc.summary()
-        content = re.sub(r'<[^>]+>', ' ', content_html)
-        content = re.sub(r'\s+', ' ', content).strip()
-        return {"title": doc.title() or "", "content": content, "method": "readability"}
+        from article_reader.content_extractor import ContentExtractor
+
+        extracted = ContentExtractor(strategy="trafilatura")._extract_scrapling(
+            html,
+            method="scrapling_diagnostic",
+        )
+        return {
+            "title": extracted.title,
+            "content": extracted.content,
+            "method": extracted.method,
+        }
     except Exception as e:
-        return {"title": "", "content": "", "method": f"readability_error:{e}"}
+        return {"title": "", "content": "", "method": f"scrapling_error:{e}"}
 
 
 def extract_trafilatura(html: str, url: str = "") -> dict:
@@ -120,11 +125,11 @@ async def main():
                 html = result.html
                 if html:
                     traf = extract_trafilatura(html, url)
-                    read = extract_readability(html)
+                    scrap = extract_scrapling(html)
                     bare = extract_bare_html(html)
                     
-                    print(f"  Post-hoc: trafilatura={len(traf['content'])} readability={len(read['content'])} bare={len(bare['content'])}")
-                    print(f"  Title: traf='{traf['title'][:60]}' read='{read['title'][:60]}'")
+                    print(f"  Post-hoc: trafilatura={len(traf['content'])} scrapling={len(scrap['content'])} bare={len(bare['content'])}")
+                    print(f"  Title: traf='{traf['title'][:60]}' scrap='{scrap['title'][:60]}'")
                     
                     r = {
                         "name": name,
@@ -137,12 +142,12 @@ async def main():
                         "pipeline_title": result.title[:100] if result.title else "",
                         "trafilatura_len": len(traf["content"]),
                         "trafilatura_title": traf["title"][:100],
-                        "readability_len": len(read["content"]),
-                        "readability_title": read["title"][:100],
+                        "scrapling_len": len(scrap["content"]),
+                        "scrapling_title": scrap["title"][:100],
                         "bare_html_len": len(bare["content"]),
                         "html_len": len(html),
                         "pipeline_preview": result.content[:150] if result.content else "",
-                        "readability_preview": read["content"][:150],
+                        "scrapling_preview": scrap["content"][:150],
                         "trafilatura_preview": traf["content"][:150],
                     }
                 else:
@@ -178,27 +183,27 @@ async def main():
     print(f"Total: {len(results)} | OK: {len(ok)} | Fail: {len(fail)}")
     
     if ok:
-        print(f"\n{'Name':<25s} {'P':>3s} {'Time':>6s} {'Traf':>8s} {'Read':>8s} {'Bare':>8s} {'Title'}")
+        print(f"\n{'Name':<25s} {'P':>3s} {'Time':>6s} {'Traf':>8s} {'Scrap':>8s} {'Bare':>8s} {'Title'}")
         print(f"{'-'*25} {'-'*3} {'-'*6} {'-'*8} {'-'*8} {'-'*8} {'-'*40}")
         
         for r in ok:
             p = r.get("pipeline", "?")
             t = f"{r['elapsed_s']:.0f}s"
             tlen = str(r.get("trafilatura_len", "?"))
-            rlen = str(r.get("readability_len", "?"))
+            rlen = str(r.get("scrapling_len", "?"))
             blen = str(r.get("bare_html_len", "?"))
             title = (r.get("pipeline_title") or "")[:40]
             print(f"{r['name']:<25s} {str(p):>3s} {t:>6s} {tlen:>8s} {rlen:>8s} {blen:>8s} {title}")
         
         # Best extractor analysis
         traf_total = sum(r.get("trafilatura_len", 0) for r in ok)
-        read_total = sum(r.get("readability_len", 0) for r in ok)
-        print(f"\nTrafilatura total: {traf_total} chars | Readability total: {read_total} chars")
+        read_total = sum(r.get("scrapling_len", 0) for r in ok)
+        print(f"\nTrafilatura total: {traf_total} chars | Scrapling total: {read_total} chars")
         
         if read_total > traf_total:
-            print(">> readability-lxml yields MORE content than trafilatura for WSJ")
+            print(">> Scrapling fallback yields MORE content than trafilatura for WSJ")
         else:
-            print(">> trafilatura yields MORE content than readability-lxml for WSJ")
+            print(">> trafilatura yields MORE content than Scrapling fallback for WSJ")
     
     if fail:
         print("\nFailed:")

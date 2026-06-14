@@ -11,14 +11,14 @@ python -m pytest test/test_refactor_contract.py -q
 Expected result:
 
 ```text
-7 passed
+8 passed
 ```
 
 This suite is intentionally independent of live websites, browsers, proxy pools, and local profiles.
 
 ## Current Extraction Contract
 
-- `ContentExtractor` uses trafilatura for article details.
+- `ContentExtractor` uses trafilatura for article details and Scrapling DOM text as fallback.
 - `LinkExtractor` uses Scrapling DOM selectors for list-page links.
 - `SmartFetcher.fetch_links()` is the public list extraction entry point.
 - `extract_strategy` remains compatible but normalizes unsupported values to trafilatura.

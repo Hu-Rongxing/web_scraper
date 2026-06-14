@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
 """article_reader public API.
 
-Article extraction is handled by trafilatura. List-page link discovery is
-handled by Scrapling through LinkExtractor / SmartFetcher.fetch_links().
+Article extraction uses trafilatura with Scrapling fallback. List-page link
+discovery is handled by Scrapling through LinkExtractor / SmartFetcher.fetch_links().
 """
 __version__ = "3.1.0"
 

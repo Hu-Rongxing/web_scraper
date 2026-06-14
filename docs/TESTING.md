@@ -11,7 +11,7 @@ python -m py_compile content_extractor.py link_extractor.py fetchers/smart.py __
 
 The contract tests cover:
 
-- trafilatura-only article extraction
+- trafilatura article extraction with Scrapling fallback
 - compatibility normalization for unsupported `extract_strategy` values
 - Scrapling-based list link extraction
 - proxy pool behavior
