@@ -111,7 +111,7 @@ async def test_optimized():
     avg_before = sum(r['time'] for r in results_before if r['success']) / sum(1 for r in results_before if r['success'])
     avg_after = sum(r['time'] for r in results_after if r['success']) / sum(1 for r in results_after if r['success'])
 
-    print(f"\n总体指标:")
+    print("\n总体指标:")
     print(f"  总耗时:     {total_before:.2f}s → {total_after:.2f}s  ({(total_before-total_after)/total_before*100:+.1f}%)")
     print(f"  平均响应:   {avg_before:.0f}ms → {avg_after:.0f}ms  ({(avg_before-avg_after)/avg_before*100:+.1f}%)")
 
@@ -124,7 +124,7 @@ async def test_optimized():
         improvement = (total_before - total_after) / total_before * 100
         print(f"\n✅ 优化成功！总体性能提升 {improvement:.1f}%")
     else:
-        print(f"\n⚠️ 优化效果不明显，可能需要调整参数")
+        print("\n⚠️ 优化效果不明显，可能需要调整参数")
 
     print("\n💡 优化建议:")
     if avg_after > 15000:

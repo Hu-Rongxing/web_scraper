@@ -10,6 +10,7 @@ import time
 import json
 from pathlib import Path
 from datetime import datetime
+from output_paths import output_path
 
 # Fix Windows console encoding
 sys.stdout.reconfigure(encoding='utf-8', errors='replace')
@@ -196,20 +197,20 @@ async def main():
             p = r["pipeline_level"]
             pipeline_dist[p] = pipeline_dist.get(p, 0) + 1
     
-    print(f"\nPipeline Distribution:")
+    print("\nPipeline Distribution:")
     for p in sorted(pipeline_dist.keys()):
         print(f"  P{p}: {pipeline_dist[p]}")
     
     # Failed URLs
     if fail_count > 0:
-        print(f"\nFailed URLs:")
+        print("\nFailed URLs:")
         for r in results:
             if not r["success"]:
                 print(f"  - {r['name']}: {r['url'][:60]}...")
                 print(f"    Error: {r['error'][:100]}...")
     
     # Save results to JSON
-    output_file = Path(__file__).parent / "test_results_comprehensive.json"
+    output_file = output_path("test_results_comprehensive.json")
     with open(output_file, "w", encoding="utf-8") as f:
         json.dump({
             "timestamp": datetime.now().isoformat(),
@@ -223,24 +224,24 @@ async def main():
     print(f"\n\nResults saved to: {output_file}")
     
     # Generate markdown report
-    report_file = Path(__file__).parent / "test_results_comprehensive.md"
+    report_file = output_path("test_results_comprehensive.md")
     with open(report_file, "w", encoding="utf-8") as f:
-        f.write(f"# article_reader Comprehensive Link Test Report\n\n")
+        f.write("# article_reader Comprehensive Link Test Report\n\n")
         f.write(f"**Date:** {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n\n")
-        f.write(f"## Summary\n\n")
+        f.write("## Summary\n\n")
         f.write(f"- **Total URLs:** {len(TEST_URLS)}\n")
         f.write(f"- **Success:** {success_count} ({success_count/len(TEST_URLS)*100:.1f}%)\n")
         f.write(f"- **Failed:** {fail_count} ({fail_count/len(TEST_URLS)*100:.1f}%)\n\n")
         
-        f.write(f"## Pipeline Distribution\n\n")
-        f.write(f"| Pipeline | Count |\n")
-        f.write(f"|----------|-------|\n")
+        f.write("## Pipeline Distribution\n\n")
+        f.write("| Pipeline | Count |\n")
+        f.write("|----------|-------|\n")
         for p in sorted(pipeline_dist.keys()):
             f.write(f"| P{p} | {pipeline_dist[p]} |\n")
         
-        f.write(f"\n## Detailed Results\n\n")
-        f.write(f"| # | Name | Status | Pipeline | Method | Time | Content |\n")
-        f.write(f"|---|------|--------|----------|--------|------|--------|\n")
+        f.write("\n## Detailed Results\n\n")
+        f.write("| # | Name | Status | Pipeline | Method | Time | Content |\n")
+        f.write("|---|------|--------|----------|--------|------|--------|\n")
         
         for i, r in enumerate(results, 1):
             status = "✅" if r["success"] else "❌"
@@ -251,7 +252,7 @@ async def main():
             
             f.write(f"| {i} | {r['name']} | {status} | {pipeline} | {method} | {time_str} | {content} |\n")
         
-        f.write(f"\n## Failed URLs Analysis\n\n")
+        f.write("\n## Failed URLs Analysis\n\n")
         for r in results:
             if not r["success"]:
                 f.write(f"### {r['name']}\n")

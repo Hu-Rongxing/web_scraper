@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 """抓取经济学人指定文章全文."""
-import sys, asyncio
+import sys
+import asyncio
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
@@ -18,7 +19,7 @@ async def main():
         if r.success:
             print(f"标题: {r.title}")
             print(f"日期: {r.date}")
-            print(f"栏目: Leaders | Dire strait")
+            print("栏目: Leaders | Dire strait")
             print(f"长度: {r.length:,} chars")
             print(f"方法: {r.method}")
             print(f"{'='*70}")

@@ -13,7 +13,6 @@ test_pipelines.py - 五级管线完整测试脚本
 
 import asyncio
 import sys
-import time
 from pathlib import Path
 
 import pytest
@@ -27,8 +26,6 @@ from article_reader import (
     PipelineManager,
     Pipeline5Manager,
     PipelineLevel,
-    PipelineResult,
-    Pipeline5Result,
 )
 
 

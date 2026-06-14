@@ -6,7 +6,9 @@
   - 3 个 slot 可同时抓取 3 个不同网站
 """
 
-import sys, asyncio, time, random
+import sys
+import asyncio
+import time
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 

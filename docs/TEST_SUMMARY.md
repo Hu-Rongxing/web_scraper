@@ -1,34 +1,30 @@
 # Test Summary
 
-## Current Scope
+## Stable Contract Suite
 
-The refactor closes article_reader content extraction to two focused paths:
-
-- Article detail extraction: trafilatura.
-- News list link extraction: Scrapling DOM parsing through `LinkExtractor`.
-
-`extract_strategy` is retained for compatibility, but unsupported values are normalized to trafilatura.
-
-## Verified Commands
+The primary local suite is:
 
 ```bash
-python -c "from article_reader import BaseFetcher, SmartFetcher, ContentExtractor, LinkExtractor, ExtractStrategy; print('exports ok')"
-python -m pytest article_reader/test/test_refactor_contract.py -q
+python -m pytest test/test_refactor_contract.py -q
 ```
 
-Expected focused test result:
+Expected result:
 
 ```text
 7 passed
 ```
 
-## Remaining External Dependencies
+This suite is intentionally independent of live websites, browsers, proxy pools, and local profiles.
 
-Some legacy integration scripts still require local browser, proxy, or live network configuration. They are useful for environment validation, but they are not required for the extraction engine contract.
+## Current Extraction Contract
 
-## Refactor Result
+- `ContentExtractor` uses trafilatura for article details.
+- `LinkExtractor` uses Scrapling DOM selectors for list-page links.
+- `SmartFetcher.fetch_links()` is the public list extraction entry point.
+- `extract_strategy` remains compatible but normalizes unsupported values to trafilatura.
 
-- `ContentExtractor` is trafilatura-only.
-- `LinkExtractor` owns list-page link extraction.
-- `SmartFetcher.fetch_links()` provides a public list extraction entry point.
-- Public exports include `ContentExtractor`, `LinkExtractor`, `ExtractedContent`, and `ExtractedLink`.
+## Integration Coverage
+
+Live diagnostic scripts remain under `test/`. They are useful for browser, proxy, and site-specific validation but are not part of the fast contract gate.
+
+Reports and captures belong under `test/output/` and are not committed.

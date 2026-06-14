@@ -2,7 +2,6 @@
 """抓取 WSJ 首页最新 5 篇文章并提取正文."""
 
 import sys
-import re
 import asyncio
 from pathlib import Path
 
@@ -61,8 +60,8 @@ async def main():
             wsj_links = [h for h in all_hrefs if "wsj.com" in h and h.count("/") > 3]
             print(f"  WSJ 长链接: {len(wsj_links)}")
             print("  前 10 个链接样本:")
-            for i, l in enumerate(wsj_links[:10]):
-                print(f"    {i+1}) {l}")
+            for i, link in enumerate(wsj_links[:10]):
+                print(f"    {i+1}) {link}")
 
             # 过滤真实文章链接 — WSJ 文章 URL 格式多样
             seen = set()

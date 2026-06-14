@@ -1,51 +1,51 @@
 # Testing Guide
 
-This document describes the checks for the refactored article_reader extraction boundary.
+Run commands from the `article_reader` repository root.
 
-## Fast Contract Tests
+## Fast Checks
 
 ```bash
-python -m pytest article_reader/test/test_refactor_contract.py -q
+python -m pytest test/test_refactor_contract.py -q
+python -m py_compile content_extractor.py link_extractor.py fetchers/smart.py __init__.py
 ```
 
-These tests verify:
+The contract tests cover:
 
-- `ContentExtractor` extracts article details through trafilatura.
-- Unsupported `extract_strategy` values normalize to trafilatura.
-- `LinkExtractor` extracts list-page links through Scrapling DOM parsing.
-- Proxy pool contracts still hold.
-- Pipeline level public constants remain stable.
+- trafilatura-only article extraction
+- compatibility normalization for unsupported `extract_strategy` values
+- Scrapling-based list link extraction
+- proxy pool behavior
+- pipeline level public constants
 
-## Import Check
+## Optional Import Check
 
 ```bash
 python -c "from article_reader import BaseFetcher, SmartFetcher, ContentExtractor, LinkExtractor, ExtractStrategy; print('exports ok')"
 ```
 
-## Compile Check
+## Live Integration Scripts
+
+The broader scripts in `test/` may launch browsers, hit live sites, use proxies, or take several minutes. Run them only when that environment is ready.
+
+Common scripts:
 
 ```bash
-python -m compileall article_reader
+python test/test_4sites.py
+python test/test_proxy_sites.py
+python test/test_comprehensive_links.py
+python test/test_wsj_optimized.py
 ```
 
-This catches syntax errors across package code and local test scripts.
+Generated reports should use `test/output/`. That directory is ignored.
 
-## Network Tests
+## Linting
 
-The broader scripts under `article_reader/test/` may perform live network, browser, or proxy work. Run them only in an environment where those dependencies are configured.
+`ruff check .` currently reports legacy style issues in older diagnostics and browser/pipeline modules. Treat it as a backlog signal unless the current task explicitly includes a lint cleanup pass.
 
-Common examples:
+## Codegraph
+
+Update the index after structural changes:
 
 ```bash
-python article_reader/test/test_4sites.py
-python article_reader/test/test_proxy_sites.py
-python article_reader/test/analyze_links.py
+codegraph build . --no-incremental
 ```
-
-## Expected Engine Boundary
-
-After the refactor:
-
-- Article detail extraction is handled by trafilatura.
-- List-page link extraction is handled by Scrapling selectors.
-- The package should not expose production article extraction strategies named `raw_html`, `raw_text`, `selector`, or `readability`.

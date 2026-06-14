@@ -12,7 +12,6 @@ article_reader 测试脚本
 
 import sys
 import asyncio
-import os
 from pathlib import Path
 
 # 确保能找到 article_reader 包
@@ -86,7 +85,7 @@ async def main():
             if result.content:
                 # 打印前 500 字符
                 preview = result.content[:500].replace("\n", "\n  ")
-                print(f"\n  --- 内容预览 ---")
+                print("\n  --- 内容预览 ---")
                 print(f"  {preview}")
                 print(f"  --- (共 {result.length:,} 字符) ---")
 

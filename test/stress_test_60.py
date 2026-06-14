@@ -11,7 +11,9 @@
   - 用信号量 concurrency=5 控制
 """
 
-import sys, asyncio, time, random
+import sys
+import asyncio
+import time
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
@@ -205,12 +207,12 @@ async def main():
         print(f"  p50:            {p50:.1f}s")
         print(f"  p90:            {p90:.1f}s")
 
-    print(f"\n  Engine breakdown:")
+    print("\n  Engine breakdown:")
     for eng, cnt in sorted(engines.items()):
         print(f"    {eng}: {cnt}")
 
     # 分段时间
-    print(f"\n  Phase timing:")
+    print("\n  Phase timing:")
     print(f"    BPC news (10):       {t1:.1f}s")
     print(f"    Chinese/non-BPC (10): {t2:.1f}s")
     print(f"    Fast static (40):     {t3:.1f}s")
@@ -218,7 +220,7 @@ async def main():
     # 估算 60 站点并行能力
     if ok >= 30:
         print(f"\n  ⚡ Parallel capacity: 60-site batch ~ {grand_total:.0f}s (p50={p50:.1f}s/article)")
-        print(f"  ✅ pool_size=3 + SmartFetcher auto-route works for multi-site parallel scraping")
+        print("  ✅ pool_size=3 + SmartFetcher auto-route works for multi-site parallel scraping")
     else:
         print(f"\n  ⚠️ {len(all_results)-ok} failures — see details above")
 

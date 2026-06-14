@@ -2,7 +2,6 @@
 """抓取腾讯新闻首页最新 5 篇文章并提取正文."""
 
 import sys
-import re
 import asyncio
 from pathlib import Path
 
@@ -158,7 +157,6 @@ async def _fetch_from_api(df) -> list[str]:
     """通过腾讯新闻 API 获取最新文章链接 (不需要浏览器)."""
     articles = []
     try:
-        import json
         # 腾讯新闻要闻频道 API
         api_urls = [
             ("https://i.news.qq.com/trpc.qqnews_web.pc_base_srv.base_http_proxy/"

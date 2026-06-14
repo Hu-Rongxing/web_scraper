@@ -20,7 +20,7 @@ sys.stdout.reconfigure(encoding='utf-8', errors='replace')
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from article_reader import SmartFetcher, PipelineLevel, Pipeline5Manager
+from article_reader import SmartFetcher, Pipeline5Manager
 
 
 # ============================================================
@@ -144,7 +144,7 @@ async def test_tier(tier_name: str, sites: list, fetcher):
 async def test_pipeline5():
     """单独测试管线 5 (nodriver)"""
     print(f"\n{'#'*60}")
-    print(f"# Tier 5: Pipeline 5 fallback (nodriver)")
+    print("# Tier 5: Pipeline 5 fallback (nodriver)")
     print(f"{'#'*60}")
     
     test_url = "https://en.wikipedia.org/wiki/Web_scraping"
@@ -175,7 +175,7 @@ async def test_pipeline5():
 async def test_auto_degradation():
     """测试自动降级机制"""
     print(f"\n{'#'*60}")
-    print(f"# Auto-degradation test")
+    print("# Auto-degradation test")
     print(f"{'#'*60}")
     
     test_sites = [
@@ -246,7 +246,7 @@ async def main():
     print(f"\nTotal: {passed}/{total} passed")
     
     if r_deg:
-        print(f"\nAuto-degradation test:")
+        print("\nAuto-degradation test:")
         for name, success, pipeline in r_deg:
             print(f"  {'[OK]' if success else '[FAIL]'} {name} -> final pipeline P{pipeline}")
     

@@ -9,15 +9,13 @@ proxies/proxy_pool.py — 三组代理池实现
 
 import asyncio
 import time
-import itertools
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Optional
 
 from ..config import (
     PROXY_GROUP_1,
     PROXY_GROUP_2,
     PROXY_GROUP_3A,
-    PROXY_GROUP_3B,
     PROXY_HEALTH_CHECK_INTERVAL_SEC,
     PROXY_IP_CHECK_URL,
     PROXY_BLACKLIST_TTL_SEC,

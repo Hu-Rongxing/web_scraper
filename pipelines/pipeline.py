@@ -11,7 +11,7 @@ from dataclasses import dataclass, field
 from typing import Optional
 from urllib.parse import urlparse
 
-from ..browser_pool import PoolA, PoolB, PoolC, BrowserSlot, PoolType
+from ..browser_pool import PoolA, PoolB, PoolC, BrowserSlot
 from ..content_extractor import ContentExtractor
 from ..models import PipelineResult
 from ..proxies import (
@@ -31,7 +31,7 @@ from ..config import (
     MIN_CONTENT_LENGTH,
     logger,
 )
-from .anti_block import BypassExecutor, WallDetector
+from .anti_block import WallDetector
 
 
 # ============================================================

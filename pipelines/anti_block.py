@@ -33,11 +33,10 @@ pipelines/anti_block.py — 反封锁突破模块 v1.0
    - 自动尝试多种突破方式
 """
 
-import asyncio
 import re
 import time
 from dataclasses import dataclass
-from typing import Optional, Callable, Awaitable
+from typing import Optional
 from urllib.parse import urlparse, quote_plus
 
 from ..config import logger

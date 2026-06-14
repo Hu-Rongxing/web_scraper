@@ -182,7 +182,7 @@ async def test_rss_validation():
     assert result.sync_delay_seconds <= 30, f"同步延迟应该 <= 30s，实际 {result.sync_delay_seconds:.1f}s"
     assert result.article_match_ratio >= 0.9, f"文章匹配率应该 >= 90%，实际 {result.article_match_ratio:.1%}"
     
-    print(f"[OK] RSS 验证通过:")
+    print("[OK] RSS 验证通过:")
     print(f"  - 同步延迟: {result.sync_delay_seconds:.1f}s")
     print(f"  - 文章匹配率: {result.article_match_ratio:.1%}")
     print(f"  - 数量匹配率: {result.count_match_ratio:.1%}")
@@ -219,8 +219,6 @@ async def test_bypass_executor():
     print("\n=== 测试突破执行器 ===\n")
     
     # 创建执行器（不传入 HTTP 客户端，只测试逻辑）
-    executor = BypassExecutor()
-    
     # 测试墙类型检测
     wall_type = WallDetector.detect_wall_type(
         '<div class="paywall">Subscribe now</div>',

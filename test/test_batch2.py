@@ -7,6 +7,7 @@ import time
 import json
 from pathlib import Path
 from datetime import datetime
+from output_paths import output_path
 
 sys.stdout.reconfigure(encoding='utf-8', errors='replace')
 sys.path.insert(0, str(Path(__file__).parent.parent))
@@ -108,7 +109,7 @@ async def main():
         print(f"  [{s}] {r['name']:20s} {p:4s} {r['elapsed_ms']:8.0f}ms {r['content_length']:6d} chars")
 
     # Save JSON
-    out = Path(__file__).parent / "test_results_batch2.json"
+    out = output_path("test_results_batch2.json")
     with open(out, "w", encoding="utf-8") as f:
         json.dump({
             "timestamp": datetime.now().isoformat(),

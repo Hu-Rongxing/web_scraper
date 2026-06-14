@@ -1,0 +1,3 @@
+[tool.ruff.lint.per-file-ignores]
+"test/*.py" = ["E402"]
+"test/debug/*.py" = ["E402"]

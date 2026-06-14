@@ -46,14 +46,14 @@ async def main():
                 print(f"  耗时: {result.elapsed_ms:.0f}ms")
 
                 if result.success and result.length > 500:
-                    print(f"  ✓ 找到有效 URL!")
-                    print(f"\n  内容预览:")
+                    print("  ✓ 找到有效 URL!")
+                    print("\n  内容预览:")
                     print(f"  {result.content[:200].replace(chr(10), ' ')}...")
                     break
                 elif result.error:
                     print(f"  ✗ 错误: {result.error[:100]}")
                 else:
-                    print(f"  ⚠ 内容太短，继续尝试...")
+                    print("  ⚠ 内容太短，继续尝试...")
 
             except Exception as e:
                 print(f"  ✗ 异常: {str(e)[:100]}")

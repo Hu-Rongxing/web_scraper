@@ -9,6 +9,7 @@ pipelines/pipeline5.py — 管线5: nodriver 兜底链路
 """
 
 import asyncio
+import importlib.util
 import time
 
 from ..config import (
@@ -50,7 +51,8 @@ class Pipeline5Manager:
         
         # 检查 nodriver 是否可用
         try:
-            import nodriver
+            if importlib.util.find_spec("nodriver") is None:
+                raise ImportError("nodriver not found")
             self._nodriver_available = True
             logger.info("Pipeline5: nodriver available")
         except ImportError:

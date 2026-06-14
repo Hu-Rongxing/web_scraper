@@ -13,7 +13,6 @@ if sys.platform == 'win32':
     sys.stderr.reconfigure(encoding='utf-8')
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
-from article_reader import ArticleReader
 from playwright.async_api import async_playwright
 
 async def debug_nytimes():

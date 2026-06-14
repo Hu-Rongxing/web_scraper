@@ -9,6 +9,7 @@ import json
 import time
 from datetime import datetime
 from pathlib import Path
+from output_paths import output_path
 
 # Add project root to path
 import sys
@@ -156,7 +157,7 @@ async def test_single_url(fetcher: SmartFetcher, test_case: dict) -> dict:
 async def main():
     """Run all tests."""
     print(f"\n{'#'*70}")
-    print(f"# article_reader Link Test Suite")
+    print("# article_reader Link Test Suite")
     print(f"# Started: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
     print(f"# Total URLs: {len(TEST_URLS)}")
     print(f"{'#'*70}\n")
@@ -175,7 +176,7 @@ async def main():
     
     # Summary
     print(f"\n\n{'#'*70}")
-    print(f"# TEST SUMMARY")
+    print("# TEST SUMMARY")
     print(f"{'#'*70}\n")
     
     success_count = sum(1 for r in results if r["success"])
@@ -192,20 +193,20 @@ async def main():
             p = r["pipeline_level"]
             pipeline_dist[p] = pipeline_dist.get(p, 0) + 1
     
-    print(f"\nPipeline Distribution:")
+    print("\nPipeline Distribution:")
     for p in sorted(pipeline_dist.keys()):
         print(f"  P{p}: {pipeline_dist[p]}")
     
     # Failed URLs
     if failed_count > 0:
-        print(f"\nFailed URLs:")
+        print("\nFailed URLs:")
         for r in results:
             if not r["success"]:
                 print(f"  - {r['name']}: {r['url'][:60]}...")
                 print(f"    Error: {r['error'][:80]}...")
     
     # Save results to JSON
-    output_file = Path(__file__).parent / "test_results_all_links.json"
+    output_file = output_path("test_results_all_links.json")
     with open(output_file, "w", encoding="utf-8") as f:
         json.dump({
             "timestamp": datetime.now().isoformat(),
@@ -219,24 +220,24 @@ async def main():
     print(f"\n\nResults saved to: {output_file}")
     
     # Generate markdown report
-    report_file = Path(__file__).parent / "test_results_all_links.md"
+    report_file = output_path("test_results_all_links.md")
     with open(report_file, "w", encoding="utf-8") as f:
-        f.write(f"# article_reader Link Test Report\n\n")
+        f.write("# article_reader Link Test Report\n\n")
         f.write(f"**Date:** {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n\n")
-        f.write(f"## Summary\n\n")
+        f.write("## Summary\n\n")
         f.write(f"- **Total URLs:** {len(results)}\n")
         f.write(f"- **Success:** {success_count} ({success_count/len(results)*100:.1f}%)\n")
         f.write(f"- **Failed:** {failed_count} ({failed_count/len(results)*100:.1f}%)\n\n")
         
-        f.write(f"## Pipeline Distribution\n\n")
-        f.write(f"| Pipeline | Count |\n")
-        f.write(f"|----------|-------|\n")
+        f.write("## Pipeline Distribution\n\n")
+        f.write("| Pipeline | Count |\n")
+        f.write("|----------|-------|\n")
         for p in sorted(pipeline_dist.keys()):
             f.write(f"| P{p} | {pipeline_dist[p]} |\n")
         
-        f.write(f"\n## Detailed Results\n\n")
-        f.write(f"| # | Name | Status | Pipeline | Method | Time | Content | Error |\n")
-        f.write(f"|---|------|--------|----------|--------|------|---------|-------|\n")
+        f.write("\n## Detailed Results\n\n")
+        f.write("| # | Name | Status | Pipeline | Method | Time | Content | Error |\n")
+        f.write("|---|------|--------|----------|--------|------|---------|-------|\n")
         
         for i, r in enumerate(results, 1):
             status = "✅" if r["success"] else "❌"
@@ -248,7 +249,7 @@ async def main():
             
             f.write(f"| {i} | {r['name']} | {status} | {pipeline} | {method} | {time_str} | {content} | {error} |\n")
         
-        f.write(f"\n## Failed URLs Analysis\n\n")
+        f.write("\n## Failed URLs Analysis\n\n")
         for r in results:
             if not r["success"]:
                 f.write(f"### {r['name']}\n")

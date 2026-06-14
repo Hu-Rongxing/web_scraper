@@ -4,7 +4,9 @@
 测试不同 pool_size 对并行抓取速度的影响.
 """
 
-import sys, asyncio, time
+import sys
+import asyncio
+import time
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
@@ -133,9 +135,9 @@ async def main():
     r2 = await run_bench("Optimized", pool_size=6, bpc_concurrency=6, fast_concurrency=20)
 
     print(f"\n{'='*70}")
-    print(f"  Comparison Summary")
+    print("  Comparison Summary")
     print(f"{'='*70}")
-    print(f"")
+    print("")
     print(f"  {'Metric':20s} {'Baseline':>10s} {'Optimized':>10s} {'Improvement':>12s}")
     print(f"  {'-'*52}")
     print(f"  {'Success':20s} {r1['ok']:>10d} {r2['ok']:>10d}")

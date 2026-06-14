@@ -16,7 +16,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from article_reader import SmartFetcher, FetchResult
+from article_reader import SmartFetcher
 
 
 async def main():

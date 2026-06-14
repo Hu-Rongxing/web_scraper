@@ -13,7 +13,6 @@ import sys
 import asyncio
 import time
 from pathlib import Path
-from typing import List
 import statistics
 import os
 
@@ -77,7 +76,7 @@ class PerformanceStats:
         print(f"吞吐量: {self.requests_per_second():.2f} req/s")
 
         if self.response_times:
-            print(f"\n响应时间统计:")
+            print("\n响应时间统计:")
             print(f"  平均: {statistics.mean(self.response_times):.0f}ms")
             print(f"  中位: {statistics.median(self.response_times):.0f}ms")
             print(f"  P95: {sorted(self.response_times)[int(len(self.response_times)*0.95)]:.0f}ms")
@@ -86,12 +85,12 @@ class PerformanceStats:
             print(f"  最大: {max(self.response_times):.0f}ms")
 
         if self.content_lengths:
-            print(f"\n内容长度统计:")
+            print("\n内容长度统计:")
             print(f"  平均: {statistics.mean(self.content_lengths):,.0f} 字符")
             print(f"  中位: {statistics.median(self.content_lengths):,.0f} 字符")
 
         if self.errors:
-            print(f"\n错误类型分布:")
+            print("\n错误类型分布:")
             error_counts = {}
             for e in self.errors:
                 # 只取前 50 个字符
@@ -159,9 +158,9 @@ async def run_stress_test(
     stats = PerformanceStats()
 
     async with ArticleReader(pool_size=5, use_trafilatura=True) as reader:
-        print(f"✓ ArticleReader 已启动")
+        print("✓ ArticleReader 已启动")
         print(f"  BPC 版本: {reader._plugin_manager._get_current_version()}")
-        print(f"  浏览器池: 5 实例\n")
+        print("  浏览器池: 5 实例\n")
 
         # 创建信号量限制并发
         semaphore = asyncio.Semaphore(max_concurrent_requests)
@@ -183,7 +182,7 @@ async def run_stress_test(
 
         # 打印池状态
         pool_stats = reader.stats()
-        print(f"\n浏览器池状态:")
+        print("\n浏览器池状态:")
         print(f"  总 slots: {pool_stats['pool']['total_slots']}")
         print(f"  已处理页面: {pool_stats['pool']['total_pages_served']}")
         print(f"  崩溃次数: {pool_stats['pool']['crashed']}")

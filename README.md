@@ -1,13 +1,13 @@
 # article_reader
 
-article_reader is a news list and article detail extraction package.
+`article_reader` is a focused Python package for news list discovery and article detail extraction.
 
-The current extraction boundary is intentionally narrow:
+The project is intentionally scoped to two extraction engines:
 
-- Article detail extraction uses `trafilatura` only.
-- News list and link extraction uses Scrapling DOM parsing through `LinkExtractor`.
-- Fetching and degradation are handled by the existing pipeline manager.
-- `extract_strategy` remains as a compatibility parameter, but unsupported values are normalized to `trafilatura`.
+- Article detail text: `trafilatura`
+- News/list links: Scrapling DOM selectors through `LinkExtractor`
+
+Fetching, rendering, proxy assignment, and pipeline degradation remain in the existing pipeline layer. The extraction layer stays small so it is easier to test and replace internally without changing callers.
 
 ## Public API
 
@@ -15,12 +15,11 @@ The current extraction boundary is intentionally narrow:
 from article_reader import ContentExtractor, LinkExtractor, SmartFetcher
 ```
 
-### Article Detail Extraction
+### Extract Article Details
 
 ```python
 from article_reader import ContentExtractor
 
-html = "<html><body><article><h1>Title</h1><p>Body...</p></article></body></html>"
 result = ContentExtractor().extract(html, "https://example.com/article")
 
 print(result.title)
@@ -28,7 +27,7 @@ print(result.content)
 print(result.method)
 ```
 
-`ContentExtractor` returns an `ExtractedContent` object with normalized fields:
+`ContentExtractor` returns `ExtractedContent`:
 
 - `title`
 - `content`
@@ -38,15 +37,9 @@ print(result.method)
 - `raw_html`
 - `method`
 
-Supported extraction method values are based on trafilatura state:
+The only production article extraction strategy is `trafilatura`. The `extract_strategy` argument is retained for compatibility; unsupported values are normalized to `trafilatura`.
 
-- `trafilatura`
-- `trafilatura_short`
-- `trafilatura_empty`
-- `trafilatura_unavailable`
-- `trafilatura_error`
-
-### News List Extraction
+### Extract List Links
 
 ```python
 from article_reader import LinkExtractor
@@ -60,12 +53,12 @@ links = LinkExtractor().extract(
 )
 ```
 
-`LinkExtractor` uses Scrapling selectors and returns `ExtractedLink` objects:
+`LinkExtractor` returns `ExtractedLink` objects:
 
 - `url`
 - `title`
 
-### Unified Fetcher
+### Fetch Through Pipelines
 
 ```python
 import asyncio
@@ -80,46 +73,37 @@ async def main():
 asyncio.run(main())
 ```
 
-`SmartFetcher.fetch()` returns article detail content.
-`SmartFetcher.fetch_links()` returns list-page links from the fetched HTML.
+`SmartFetcher.fetch()` returns extracted article content.
+`SmartFetcher.fetch_links()` fetches a list page and extracts links from the rendered HTML.
 
-## Architecture
-
-The package is split by responsibility:
+## Repository Layout
 
 ```text
-article_reader/
-  content_extractor.py     # trafilatura-only article extraction
-  link_extractor.py        # Scrapling DOM link extraction
-  fetchers/
-    smart.py               # public async fetcher facade
-  pipelines/               # fetch, render, degradation, bypass managers
-  proxies/                 # proxy pool implementations
-  models.py                # result models
-  config.py                # runtime configuration
+.
+├── content_extractor.py      # trafilatura-only article extraction
+├── link_extractor.py         # Scrapling DOM link extraction
+├── fetchers/
+│   └── smart.py              # public async fetch facade
+├── pipelines/                # fetch/render/degradation managers
+├── proxies/                  # proxy pool implementations
+├── examples/                 # runnable examples
+├── test/                     # tests and integration diagnostics
+│   ├── output/               # generated test reports, ignored
+│   └── output_paths.py       # shared output path helper
+├── docs/                     # testing and verification notes
+├── models.py                 # result models
+└── config.py                 # runtime configuration
 ```
 
-## Engine Boundary
+Generated outputs, browser profiles, screenshots, HTML captures, and test reports are ignored by default.
 
-Production content extraction is closed to two engines:
+## Quick Verification
 
-- `trafilatura` for article detail text.
-- `scrapling.Selector` for list-page DOM link extraction.
-
-The package no longer exposes multiple article extraction strategies such as `raw_html`, `raw_text`, `selector`, or `readability`.
-
-## Verification
-
-Run the focused contract tests:
+Run from this repository root:
 
 ```bash
-python -m pytest article_reader/test/test_refactor_contract.py -q
-```
-
-Compile the package:
-
-```bash
-python -m compileall article_reader
+python -m pytest test/test_refactor_contract.py -q
+python -m py_compile content_extractor.py link_extractor.py fetchers/smart.py __init__.py
 ```
 
 Optional import check:
@@ -128,6 +112,16 @@ Optional import check:
 python -c "from article_reader import SmartFetcher, ContentExtractor, LinkExtractor; print('ok')"
 ```
 
-## Notes
+## Integration Tests
 
-Some integration tests depend on local browser, proxy, or network configuration. The focused contract tests are the fastest way to verify the extraction boundary without those external dependencies.
+Most files under `test/` are live-site diagnostics. They can require network access, a local browser, proxy configuration, or long timeouts.
+
+Examples:
+
+```bash
+python test/test_4sites.py
+python test/test_proxy_sites.py
+python test/test_comprehensive_links.py
+```
+
+Integration test output is written under `test/output/` and is not committed.

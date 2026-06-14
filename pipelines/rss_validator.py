@@ -12,10 +12,9 @@ pipelines/rss_validator.py — RSS 同步验证器
 不满足以上条件的 RSS 源不得使用，必须直接抓取原网站。
 """
 
-import asyncio
 import time
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import datetime
 from typing import List, Optional
 from urllib.parse import urlparse
 

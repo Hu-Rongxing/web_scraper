@@ -5,7 +5,6 @@ article_reader/plugin_manager.py — BPC 插件的更新 & 站点发现
 
 import re
 import time
-import subprocess
 import zipfile
 import shutil
 import tempfile

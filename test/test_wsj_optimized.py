@@ -13,6 +13,7 @@ import json
 import re
 from pathlib import Path
 from datetime import datetime
+from output_paths import output_path
 
 sys.stdout.reconfigure(encoding='utf-8', errors='replace')
 sys.path.insert(0, str(Path(__file__).parent.parent))
@@ -169,7 +170,7 @@ async def main():
     # Summary
     # ============================================================
     print(f"\n\n{'='*80}")
-    print(f"SUMMARY")
+    print("SUMMARY")
     print(f"{'='*80}")
     
     ok = [r for r in results if r.get("success")]
@@ -200,12 +201,12 @@ async def main():
             print(">> trafilatura yields MORE content than readability-lxml for WSJ")
     
     if fail:
-        print(f"\nFailed:")
+        print("\nFailed:")
         for r in fail:
             print(f"  - {r['name']}: {r.get('error', 'unknown')[:80]}")
     
     # Save
-    out = Path(__file__).parent / "test_results_wsj_optimized.json"
+    out = output_path("test_results_wsj_optimized.json")
     with open(out, "w", encoding="utf-8") as f:
         json.dump({
             "timestamp": datetime.now().isoformat(),

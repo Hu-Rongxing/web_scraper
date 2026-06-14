@@ -13,7 +13,7 @@ import sys
 import asyncio
 import time
 from pathlib import Path
-from typing import List, Dict
+from typing import List
 import statistics
 import os
 
@@ -233,7 +233,7 @@ async def test_single_site(reader: ArticleReader, site_key: str, site_info: dict
         })
 
         if result.success:
-            print_success(f"读取成功")
+            print_success("读取成功")
             print_info(f"标题: {result.title[:60]}{'...' if len(result.title) > 60 else ''}")
             print_info(f"方法: {result.method}")
             print_info(f"长度: {result.length:,} 字符")
@@ -243,7 +243,7 @@ async def test_single_site(reader: ArticleReader, site_key: str, site_info: dict
                 preview = result.content[:200].replace("\n", " ")
                 print_info(f"预览: {preview}...")
         else:
-            print_error(f"读取失败")
+            print_error("读取失败")
             if result.error:
                 print_error(f"错误: {result.error[:100]}")
 
@@ -364,8 +364,8 @@ async def main():
         print(f"测试模式: 全面 (所有 {len(sites_to_test)} 个网站)")
 
     print_info(f"并发数: {args['concurrent']}")
-    print_info(f"浏览器池: 3 实例")
-    print_info(f"Trafilatura: 启用")
+    print_info("浏览器池: 3 实例")
+    print_info("Trafilatura: 启用")
 
     # 启动 ArticleReader
     t_start = time.time()

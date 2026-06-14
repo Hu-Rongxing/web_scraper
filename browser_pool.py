@@ -11,6 +11,7 @@ v3.0: 池 A / 池 B / 池 C 完全隔离
 import asyncio
 import time
 import hashlib
+import platform
 import shutil
 import tempfile
 from dataclasses import dataclass
@@ -20,15 +21,13 @@ from urllib.parse import urlparse
 
 from .config import (
     BPC_EXTENSION_PATH,
-    CLOAKBROWSER_BINARY,
     HEADLESS_DEFAULT,
     VIEWPORT,
     USER_AGENT,
     POOL_A_SIZE, POOL_A_MAX_PAGES, POOL_A_IDLE_TIMEOUT_SEC, POOL_A_PRELOAD,
     POOL_B_SIZE, POOL_B_MAX_PAGES, POOL_B_IDLE_TIMEOUT_SEC, POOL_B_PRELOAD,
     POOL_B_REBUILD_DAYS, POOL_B_PROFILE_ROOT, POOL_B_COOKIE_BACKUP_DIR,
-    POOL_C_SIZE, POOL_C_MAX_PAGES, POOL_C_IDLE_TIMEOUT_SEC, POOL_C_PRELOAD,
-    HEALTH_CHECK_INTERVAL_SEC,
+    POOL_C_SIZE, HEALTH_CHECK_INTERVAL_SEC,
     logger,
 )
 
@@ -86,7 +85,6 @@ class _AsyncioPipeFilter:
 
 
 # 在 Windows 上自动安装过滤器
-import platform
 if platform.system() == "Windows":
     _AsyncioPipeFilter.install()
 

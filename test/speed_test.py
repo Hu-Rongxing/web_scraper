@@ -6,7 +6,9 @@ Phase 2: 用同一个 SmartFetcher 抓正文
 全程单个 SmartFetcher 实例, 共享 BrowserPool.
 """
 
-import sys, asyncio, time
+import sys
+import asyncio
+import time
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
@@ -123,7 +125,7 @@ async def main():
     print("Phase 2: Fetch articles (preload=True, pool_size=1)")
     print("=" * 70)
 
-    print(f"\nTiming run: 5 articles each from 3 sites, 15 total\n")
+    print("\nTiming run: 5 articles each from 3 sites, 15 total\n")
     total_start = time.time()
     all_times = []
     site_results = {}
@@ -172,7 +174,7 @@ async def main():
         print(f"    Site total: {site_total:.1f}s")
 
     total_success = sum(len([r for r,_ in site_results[n][0] if r and r.success]) for n in site_results)
-    print(f"\n  Overall:")
+    print("\n  Overall:")
     print(f"    Total time: {total_elapsed:.1f}s")
     print(f"    Articles: {total_success}/{len(all_times)} success")
     avg = sum(all_times) / len(all_times) if all_times else 0
@@ -184,7 +186,7 @@ async def main():
         print(f"    Range: {min(all_times):.1f}s ~ {max(all_times):.1f}s")
         print(f"    p50: {p50:.1f}s  p90: {p90:.1f}s")
 
-    print(f"\n  # preload=True eliminated cold-start browser launch cost.")
+    print("\n  # preload=True eliminated cold-start browser launch cost.")
 
 
 if __name__ == "__main__":

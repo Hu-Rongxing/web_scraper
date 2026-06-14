@@ -39,6 +39,10 @@ ENV/
 *.jpg
 *.jpeg
 *.gif
+test/output/
+test_results_*.json
+test_results_*.md
+test_*_output.txt
 
 # Logs
 *.log
@@ -56,11 +60,6 @@ commit_msg.txt
 # Browser profiles (large)
 browser_profile/
 
-# Temporary test files
-test_simple.py
-test_full.py
-test_quick.py
-test_refactor_contract.py
-
 # Pytest
 .pytest_cache/
+.ruff_cache/
