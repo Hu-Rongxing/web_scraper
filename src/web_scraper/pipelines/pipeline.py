@@ -6,6 +6,7 @@ pipelines/pipeline.py — 四级管线调度器 v3.0
 """
 
 import asyncio
+import re
 import time
 from dataclasses import dataclass, field
 from typing import Optional
@@ -29,6 +30,7 @@ from ..config import (
     PIPELINE_FAILURE_SIGNALS,
     PAYWALL_DETECT_SIGNALS,
     MIN_CONTENT_LENGTH,
+    USER_AGENT,
     logger,
 )
 from .anti_block import WallDetector
@@ -297,6 +299,7 @@ class PipelineManager:
 
     async def _pipeline_1_http(self, url: str, extract_strategy: str, **opts) -> PipelineResult:
         proxy = await self._proxy_g1.acquire()
+        proxy_success = False
 
         try:
             try:
@@ -310,7 +313,13 @@ class PipelineManager:
                 method = "scrapling_fetcher"
             except ImportError:
                 import requests
-                headers = {"User-Agent": "Mozilla/5.0"}
+                headers = {
+                    "User-Agent": USER_AGENT,
+                    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+                    "Accept-Language": "en-US,en;q=0.9",
+                    "Cache-Control": "no-cache",
+                    "Pragma": "no-cache",
+                }
                 proxies = {"http": proxy, "https": proxy} if proxy else None
                 # Use asyncio.to_thread to avoid blocking the event loop
                 resp = await asyncio.to_thread(
@@ -341,6 +350,7 @@ class PipelineManager:
                     error=f"Pipeline 1: content too short ({len(extracted.content)} chars)",
                 )
 
+            proxy_success = True
             return PipelineResult(
                 url=url, final_url=final_url,
                 title=extracted.title, content=extracted.content, html=html,
@@ -357,7 +367,7 @@ class PipelineManager:
             )
         finally:
             if proxy:
-                await self._proxy_g1.release(proxy, success=True)
+                await self._proxy_g1.release(proxy, success=proxy_success)
 
     # ============================================================
     # 管线 2: 基础渲染（池 A）
@@ -573,6 +583,8 @@ class PipelineManager:
         # 尝试各种突破方式
         bypass_attempts = []
 
+        # 0. Reader service variants; fast and often works for paywalled text.
+        bypass_attempts.append(("jina_reader", self._try_jina_reader(url)))
         # 1. Wayback Machine
         bypass_attempts.append(("archive_org", self._try_archive_org(url)))
         # 2. Google Cache
@@ -617,6 +629,73 @@ class PipelineManager:
             error="Pipeline 5: all bypass methods failed",
             method="pipeline5:all_failed",
         )
+
+    async def _try_jina_reader(self, url: str) -> PipelineResult:
+        """Try r.jina.ai reader variants and reject reader warning shells."""
+        import httpx
+
+        variants = self._jina_reader_urls(url)
+        headers = {
+            "User-Agent": USER_AGENT,
+            "Accept": "text/plain, text/markdown, */*",
+        }
+        async with httpx.AsyncClient(follow_redirects=True, timeout=25, headers=headers) as client:
+            for reader_url in variants:
+                try:
+                    resp = await client.get(reader_url)
+                    text = resp.text or ""
+                    if resp.status_code != 200 or len(text) < MIN_CONTENT_LENGTH:
+                        continue
+                    if self._is_reader_failure(text):
+                        continue
+                    return PipelineResult(
+                        url=url,
+                        html=text,
+                        success=True,
+                        final_url=str(resp.url),
+                        method="pipeline5:jina_reader",
+                    )
+                except Exception:
+                    continue
+        return PipelineResult(url=url, success=False, method="pipeline5:jina_reader")
+
+    def _jina_reader_urls(self, url: str) -> list[str]:
+        parsed = urlparse(url)
+        netloc_path = f"{parsed.netloc}{parsed.path}"
+        query = f"?{parsed.query}" if parsed.query else ""
+        urls = [
+            f"https://r.jina.ai/http://{url}",
+            f"https://r.jina.ai/http://{parsed.scheme}://{netloc_path}{query}",
+        ]
+        if parsed.scheme == "https":
+            urls.extend([
+                f"https://r.jina.ai/http://http://{netloc_path}{query}",
+                f"https://r.jina.ai/http://https://{netloc_path}{query}",
+            ])
+            if parsed.netloc.startswith("www."):
+                bare = parsed.netloc[4:]
+                urls.extend([
+                    f"https://r.jina.ai/http://https://{bare}{parsed.path}{query}",
+                    f"https://r.jina.ai/http://http://{bare}{parsed.path}{query}",
+                ])
+        return list(dict.fromkeys(urls))
+
+    def _is_reader_failure(self, text: str) -> bool:
+        sample = text[:2000].lower()
+        failure_markers = [
+            "warning: target url returned error",
+            "securitycompromiseerror",
+            "anonymous access to domain",
+            "title: just a moment",
+            "checking your browser",
+            "captcha",
+            "access denied",
+        ]
+        if any(marker in sample for marker in failure_markers):
+            return True
+        if re.search(r'"code"\s*:\s*(401|403|451|429)', sample):
+            return True
+        return False
 
     async def _try_archive_org(self, url: str) -> PipelineResult:
         """尝试 Wayback Machine"""

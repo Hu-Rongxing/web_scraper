@@ -60,6 +60,9 @@ class ContentExtractor:
                 "Unsupported extract strategy %r; using trafilatura",
                 self._strategy,
             )
+        plain = self._extract_reader_plain_text(html)
+        if plain:
+            return plain
         return self._extract_trafilatura(html, url)
 
     def _extract_trafilatura(self, html: str, url: str) -> ExtractedContent:
@@ -168,6 +171,61 @@ class ContentExtractor:
             raw_html=html,
             method=method,
         )
+
+    def _extract_reader_plain_text(self, text: str) -> Optional[ExtractedContent]:
+        """Extract text from reader services that return markdown/plain text."""
+        if not text:
+            return None
+        sample = text[:2000].lower()
+        has_html = re.search(r"<(?:html|body|article|main|p|div|script|head)\b", sample)
+        looks_reader = (
+            text.startswith("Title: ")
+            or "\nURL Source:" in text[:1000]
+            or "\nMarkdown Content:" in text[:2000]
+        )
+        if has_html and not looks_reader:
+            return None
+
+        lines = [line.strip() for line in text.replace("\r\n", "\n").split("\n")]
+        title = ""
+        body_lines: list[str] = []
+        in_body = not looks_reader
+        for line in lines:
+            if not line:
+                if body_lines and body_lines[-1]:
+                    body_lines.append("")
+                continue
+            if line.startswith("Title: ") and not title:
+                title = line.removeprefix("Title: ").strip()
+                continue
+            if line.startswith(("URL Source:", "Published Time:", "Markdown Content:")):
+                if line.startswith("Markdown Content:"):
+                    in_body = True
+                continue
+            if looks_reader and line.startswith(("Warning:", "Error:", '{"data":null')):
+                return ExtractedContent(
+                    title=self._clean_title(title),
+                    raw_html=text,
+                    method="reader_plain_text_rejected",
+                )
+            if in_body:
+                body_lines.append(line)
+
+        content = self._clean_reader_text("\n".join(body_lines))
+        if len(content) < MIN_CONTENT_LENGTH:
+            return None
+        return ExtractedContent(
+            title=self._clean_title(title),
+            content=content,
+            raw_html=text,
+            method="reader_plain_text",
+        )
+
+    @staticmethod
+    def _clean_reader_text(text: str) -> str:
+        text = re.sub(r"\n{3,}", "\n\n", text or "").strip()
+        text = re.sub(r"^\s*={3,}\s*$", "", text, flags=re.M)
+        return text.strip()
 
     @staticmethod
     def _clean_title(title: str) -> str:

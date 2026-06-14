@@ -35,7 +35,7 @@ if sys.platform == "win32":
 
 add_src_to_path()
 
-from article_reader import ArticleReader  # noqa: E402
+from web_scraper import ArticleReader  # noqa: E402
 
 
 # ============================================================
@@ -257,7 +257,7 @@ async def main():
     sites = SITES[: cfg["count"]]
     total = len(sites)
 
-    header(f"Article Reader — {total} 站点并发压力测试")
+    header(f"Web Scraper — {total} 站点并发压力测试")
     print(f"  浏览器池: {cfg['pool']} 实例")
     print(f"  并发上限: {cfg['max_concurrent']} (信号量限流)")
     print(f"  目标站点: {total} 个")

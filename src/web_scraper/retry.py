@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-article_reader/retry.py — 指数退避重试机制
+web_scraper/retry.py — 指数退避重试机制
 
 处理:
   - 网络抖动 (TimeoutError, ConnectionError)

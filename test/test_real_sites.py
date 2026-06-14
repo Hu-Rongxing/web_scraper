@@ -20,7 +20,7 @@ sys.stdout.reconfigure(encoding='utf-8', errors='replace')
 
 add_src_to_path()
 
-from article_reader import SmartFetcher, Pipeline5Manager
+from web_scraper import SmartFetcher, Pipeline5Manager
 
 
 # ============================================================
@@ -200,7 +200,7 @@ async def test_auto_degradation():
 async def main():
     """主测试函数"""
     print("\n" + "="*60)
-    print("article_reader v3.0 - Real site 5-pipeline test")
+    print("web_scraper v3.0 - Real site 5-pipeline test")
     print("="*60)
     
     all_results = []

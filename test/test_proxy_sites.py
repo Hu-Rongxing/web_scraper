@@ -19,7 +19,7 @@ os.environ["HTTP_PROXY"] = SYSTEM_PROXY
 os.environ["HTTPS_PROXY"] = SYSTEM_PROXY
 os.environ["ALL_PROXY"] = SYSTEM_PROXY
 
-from article_reader import SmartFetcher
+from web_scraper import SmartFetcher
 
 
 SITES = {

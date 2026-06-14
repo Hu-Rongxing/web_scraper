@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-Comprehensive link testing for article_reader project.
+Comprehensive link testing for web_scraper project.
 Tests all provided URLs and records success/failure with methods.
 """
 
@@ -14,11 +14,11 @@ from output_paths import output_path
 
 # Fix Windows console encoding
 sys.stdout.reconfigure(encoding='utf-8', errors='replace')
-# article_reader package is in D:\oc_workspace\main\article_reader
+# web_scraper package is in D:\oc_workspace\main\web_scraper
 # So we need to add D:\oc_workspace\main to sys.path
 add_src_to_path()
 
-from article_reader import SmartFetcher
+from web_scraper import SmartFetcher
 
 
 # All test URLs organized by source
@@ -123,7 +123,7 @@ def print_result(name: str, result, elapsed_time: float):
 async def main():
     """Main test function."""
     print("\n" + "="*70)
-    print("article_reader v3.1 - Comprehensive Link Test")
+    print("web_scraper v3.1 - Comprehensive Link Test")
     print(f"Started: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
     print(f"Total URLs to test: {len(TEST_URLS)}")
     print("="*70)
@@ -226,7 +226,7 @@ async def main():
     # Generate markdown report
     report_file = output_path("test_results_comprehensive.md")
     with open(report_file, "w", encoding="utf-8") as f:
-        f.write("# article_reader Comprehensive Link Test Report\n\n")
+        f.write("# web_scraper Comprehensive Link Test Report\n\n")
         f.write(f"**Date:** {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n\n")
         f.write("## Summary\n\n")
         f.write(f"- **Total URLs:** {len(TEST_URLS)}\n")

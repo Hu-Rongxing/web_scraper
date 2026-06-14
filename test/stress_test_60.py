@@ -21,7 +21,7 @@ if sys.platform == "win32":
     import io
     sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8", errors="replace")
 
-from article_reader import SmartFetcher
+from web_scraper import SmartFetcher
 
 # ---- Test URLs ----
 
@@ -152,7 +152,7 @@ async def run_stress_test(urls: list[str], label: str, f: SmartFetcher,
 
 async def main():
     print("=" * 80)
-    print("  60-Site Stress Test — Article Reader with Shared BrowserPool (size=3)")
+    print("  60-Site Stress Test — Web Scraper with Shared BrowserPool (size=3)")
     print("=" * 80)
 
     # 单一 SmartFetcher 实例

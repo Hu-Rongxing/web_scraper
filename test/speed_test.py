@@ -16,7 +16,7 @@ if sys.platform == "win32":
     import io
     sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8", errors="replace")
 
-from article_reader import SmartFetcher
+from web_scraper import SmartFetcher
 
 SITES = [
     {"name": "WSJ", "list_url": "https://www.wsj.com"},

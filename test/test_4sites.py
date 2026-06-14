@@ -14,7 +14,7 @@ sys.stderr.reconfigure(encoding="utf-8", errors="replace")
 PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 add_src_to_path()
 
-from article_reader import SmartFetcher
+from web_scraper import SmartFetcher
 
 
 SITES = {

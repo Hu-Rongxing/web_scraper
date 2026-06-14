@@ -16,7 +16,7 @@ if sys.platform == "win32":
     import io
     sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8", errors="replace")
 
-from article_reader import SmartFetcher
+from web_scraper import SmartFetcher
 
 # 测试 URL: 来自上次的成功链接 (WSJ/Economist 各选 3 个, 已确认有效)
 TEST_URLS = [

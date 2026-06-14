@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-article_reader 测试脚本
+web_scraper 测试脚本
 
 用法:
   python test_reader.py                          # 默认测试 WSJ
@@ -14,10 +14,10 @@ import sys
 import asyncio
 from path_setup import add_src_to_path
 
-# 确保能找到 article_reader 包
+# 确保能找到 web_scraper 包
 add_src_to_path()
 
-from article_reader import ArticleReader, PluginManager
+from web_scraper import ArticleReader, PluginManager
 
 
 async def main():

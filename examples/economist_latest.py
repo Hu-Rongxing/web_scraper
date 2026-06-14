@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """Extract article links and details from an Economist list page.
 
-This example uses only the public article_reader API. Live-site results depend
+This example uses only the public web_scraper API. Live-site results depend
 on network access and site availability.
 """
 
@@ -11,7 +11,7 @@ from path_setup import add_src_to_path
 
 add_src_to_path()
 
-from article_reader import SmartFetcher
+from web_scraper import SmartFetcher
 
 
 LIST_URL = "https://www.economist.com/weeklyedition/"

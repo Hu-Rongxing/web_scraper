@@ -14,7 +14,7 @@ if sys.platform == 'win32':
     sys.stderr.reconfigure(encoding='utf-8')
 
 add_src_to_path()
-from article_reader import ArticleReader
+from web_scraper import ArticleReader
 
 # 尝试不同类型的 NYTimes URL
 test_urls = [

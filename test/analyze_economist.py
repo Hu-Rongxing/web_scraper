@@ -12,10 +12,10 @@ sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 add_src_to_path()
 
-from article_reader import LinkExtractor
+from web_scraper import LinkExtractor
 
 
-html_path = Path(r"D:\oc_workspace\main\article_reader\test\economist_latest.html")
+html_path = Path(r"D:\oc_workspace\main\web_scraper\test\economist_latest.html")
 if not html_path.exists():
     print(f"missing: {html_path}")
     sys.exit(1)

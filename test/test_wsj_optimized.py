@@ -18,7 +18,7 @@ from output_paths import output_path
 sys.stdout.reconfigure(encoding='utf-8', errors='replace')
 add_src_to_path()
 
-from article_reader import SmartFetcher
+from web_scraper import SmartFetcher
 
 
 WSJ_TEST_URLS = [
@@ -37,7 +37,7 @@ WSJ_TEST_URLS = [
 def extract_scrapling(html: str) -> dict:
     """Extract content using Scrapling DOM text fallback."""
     try:
-        from article_reader.content_extractor import ContentExtractor
+        from web_scraper.content_extractor import ContentExtractor
 
         extracted = ContentExtractor(strategy="trafilatura")._extract_scrapling(
             html,

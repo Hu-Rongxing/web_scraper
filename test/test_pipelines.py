@@ -22,7 +22,7 @@ pytestmark = pytest.mark.asyncio
 # 添加项目根目录到路径
 add_src_to_path()
 
-from article_reader import (
+from web_scraper import (
     PipelineManager,
     Pipeline5Manager,
     PipelineLevel,

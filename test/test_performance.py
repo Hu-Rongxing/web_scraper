@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-性能压测脚本 - 测试 article_reader 的性能和稳定性
+性能压测脚本 - 测试 web_scraper 的性能和稳定性
 
 用法:
   python test_performance.py                    # 默认压测
@@ -22,10 +22,10 @@ if sys.platform == 'win32':
     sys.stdout.reconfigure(encoding='utf-8')
     sys.stderr.reconfigure(encoding='utf-8')
 
-# 确保能找到 article_reader 包
+# 确保能找到 web_scraper 包
 add_src_to_path()
 
-from article_reader import ArticleReader
+from web_scraper import ArticleReader
 
 # 测试 URL 池 (选择稳定的网站)
 TEST_URLS = [
@@ -139,7 +139,7 @@ async def run_stress_test(
 ):
     """运行压测"""
     print("=" * 80)
-    print("Article Reader 性能压测".center(80))
+    print("Web Scraper 性能压测".center(80))
     print("=" * 80 + "\n")
 
     if duration_seconds:

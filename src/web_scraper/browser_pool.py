@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-article_reader/browser_pool.py — 三大独立 CloakBrowser 预加载浏览器池
+web_scraper/browser_pool.py — 三大独立 CloakBrowser 预加载浏览器池
 
 v3.0: 池 A / 池 B / 池 C 完全隔离
   - 池 A: 管线 2 专用，短效住宅代理，无 humanize，快回收

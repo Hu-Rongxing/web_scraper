@@ -1,8 +1,8 @@
 # Testing Guide
 
-Run commands from the `article_reader` repository root.
+Run commands from the `D:/trend_radar/web_scraper` repository root.
 
-## Fast Local Gate
+## Fast Gate
 
 ```bash
 python -m compileall src test examples
@@ -10,27 +10,17 @@ python -m pytest test/test_refactor_contract.py -q
 python -m pytest test/test_bypass.py -q
 ```
 
-The fast gate covers:
-
-- package imports from the `src/` layout
-- trafilatura article extraction with Scrapling fallback
-- compatibility normalization for unsupported extraction strategies
-- Scrapling-based list link extraction
-- proxy pool behavior
-- pipeline level public constants
-- wall detection and RSS validation helper behavior
-
-`pyproject.toml` configures `pytest` with `pythonpath = ["src"]`, so tests can import `article_reader` directly.
+This gate checks package imports, extraction contracts, link parsing, proxy pool behavior, pipeline constants, wall detection, and RSS validation helpers.
 
 ## Import Check
 
 ```bash
-python -c "from article_reader import BaseFetcher, SmartFetcher, ContentExtractor, LinkExtractor, ExtractStrategy; print('exports ok')"
+python -c "from web_scraper import SmartFetcher, ContentExtractor, LinkExtractor; print('ok')"
 ```
 
 ## Live Diagnostics
 
-Most files under `test/` beyond the fast gate are live-site diagnostics. They may launch browsers, hit real websites, use proxies, or take several minutes.
+Most tests outside the fast gate are live-site diagnostics. They can launch browsers, use proxies, hit public sites, and take several minutes.
 
 Common scripts:
 
@@ -41,20 +31,12 @@ python test/test_comprehensive_links.py
 python test/test_wsj_optimized.py
 ```
 
-Generated reports should use `test/output/`. That directory is ignored.
-
-## Linting
-
-```bash
-ruff check .
-```
-
-Some legacy diagnostic scripts are intentionally broader than the contract suite. Treat lint findings there as cleanup work unless the current task targets them.
+Generated reports and captured pages should stay under `test/output/`.
 
 ## Codegraph
 
-Update the index after structural changes:
+Rebuild the local index after structural changes:
 
 ```bash
-codegraph build . --no-incremental
+codegraph index .
 ```

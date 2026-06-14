@@ -12,7 +12,7 @@ sys.stderr.reconfigure(encoding="utf-8", errors="replace")
 PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 add_src_to_path()
 
-from article_reader import SmartFetcher
+from web_scraper import SmartFetcher
 
 
 SITES = {
@@ -28,7 +28,7 @@ async def main():
             print(f"\nfetching {name}: {url}")
             result = await fetcher.fetch(url)
             if result.html:
-                output_path = f"D:\\oc_workspace\\main\\article_reader\\test\\{name}.html"
+                output_path = f"D:\\oc_workspace\\main\\web_scraper\\test\\{name}.html"
                 with open(output_path, "w", encoding="utf-8") as file:
                     file.write(result.html)
                 print(f"  saved: {output_path} ({len(result.html)} chars)")

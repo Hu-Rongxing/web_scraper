@@ -15,7 +15,7 @@ from output_paths import output_path
 add_src_to_path()
 
 # Direct imports from project modules
-from article_reader import SmartFetcher
+from web_scraper import SmartFetcher
 
 
 # Test URLs grouped by source
@@ -156,7 +156,7 @@ async def test_single_url(fetcher: SmartFetcher, test_case: dict) -> dict:
 async def main():
     """Run all tests."""
     print(f"\n{'#'*70}")
-    print("# article_reader Link Test Suite")
+    print("# web_scraper Link Test Suite")
     print(f"# Started: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
     print(f"# Total URLs: {len(TEST_URLS)}")
     print(f"{'#'*70}\n")
@@ -221,7 +221,7 @@ async def main():
     # Generate markdown report
     report_file = output_path("test_results_all_links.md")
     with open(report_file, "w", encoding="utf-8") as f:
-        f.write("# article_reader Link Test Report\n\n")
+        f.write("# web_scraper Link Test Report\n\n")
         f.write(f"**Date:** {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n\n")
         f.write("## Summary\n\n")
         f.write(f"- **Total URLs:** {len(results)}\n")

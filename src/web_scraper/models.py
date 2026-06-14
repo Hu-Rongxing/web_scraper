@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""Shared result models for article_reader."""
+"""Shared result models for web_scraper."""
 
 from __future__ import annotations
 

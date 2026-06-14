@@ -27,10 +27,10 @@ if sys.platform == 'win32':
 add_src_to_path()
 
 # 在导入前设置优化配置
-os.environ['ARTICLE_READER_WAIT_RENDER'] = '3000'  # 3秒等待
-os.environ['ARTICLE_READER_HEADLESS'] = '1'        # Headless模式
+os.environ['WEB_SCRAPER_WAIT_RENDER'] = '3000'  # 3秒等待
+os.environ['WEB_SCRAPER_HEADLESS'] = '1'        # Headless模式
 
-from article_reader import ArticleReader
+from web_scraper import ArticleReader
 
 # 测试 URL
 TEST_URLS = [
@@ -42,7 +42,7 @@ TEST_URLS = [
 async def test_optimized():
     """运行优化测试"""
     print("=" * 80)
-    print("Article Reader - 优化版测试".center(80))
+    print("Web Scraper - 优化版测试".center(80))
     print("=" * 80)
     print("\n✨ 优化措施:")
     print("  • Headless 模式: 启用")

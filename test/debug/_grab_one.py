@@ -9,7 +9,7 @@ if sys.platform == "win32":
     import io
     sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8", errors="replace")
 
-from article_reader import SmartFetcher
+from web_scraper import SmartFetcher
 
 async def main():
     url = "https://www.economist.com/leaders/2026/06/10/donald-trumps-least-bad-option-in-iran"

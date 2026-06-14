@@ -1,4 +1,4 @@
-﻿# -*- coding: utf-8 -*-
+# -*- coding: utf-8 -*-
 """
 WSJ / cn.WSJ 涓撻」浼樺寲娴嬭瘯
 娴嬭瘯缁村害锛?1. P4 wait 鏃堕棿: 5s(default) / 8s / 12s
@@ -20,8 +20,8 @@ from output_paths import output_path
 sys.stdout.reconfigure(encoding='utf-8', errors='replace')
 add_src_to_path()
 
-from article_reader import SmartFetcher
-from article_reader.config import PAGE_GOTO_TIMEOUT
+from web_scraper import SmartFetcher
+from web_scraper.config import PAGE_GOTO_TIMEOUT
 
 
 # ============================================================
@@ -77,9 +77,9 @@ async def run_single_test(
     try:
         # We need to bypass the normal pipeline and directly control P4 params.
         # Run a custom P4-like approach with modified parameters.
-        from article_reader.browser_pool import BrowserSlot
-        from article_reader.content_extractor import ContentExtractor
-        from article_reader.config import MIN_CONTENT_LENGTH, PIPELINE_FAILURE_SIGNALS
+        from web_scraper.browser_pool import BrowserSlot
+        from web_scraper.content_extractor import ContentExtractor
+        from web_scraper.config import MIN_CONTENT_LENGTH, PIPELINE_FAILURE_SIGNALS
         
         pool_c = fetcher._pipeline._pool_c
         if pool_c is None:

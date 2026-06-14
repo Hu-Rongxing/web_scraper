@@ -14,7 +14,7 @@ if sys.platform == "win32":
     import io
     sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8", errors="replace")
 
-from article_reader import SmartFetcher
+from web_scraper import SmartFetcher
 from asyncio import Semaphore
 
 # 10 slow BPC news sites

@@ -1,6 +1,6 @@
-﻿# -*- coding: utf-8 -*-
+# -*- coding: utf-8 -*-
 """
-article_reader/config.py 鈥?鍏ㄥ眬閰嶇疆 v3.0
+web_scraper/config.py 鈥?鍏ㄥ眬閰嶇疆 v3.0
 
 鍥涚骇绠＄嚎 + 涓夊ぇ CloakBrowser 娴忚鍣ㄦ睜 + 涓夌粍浠ｇ悊姹?绠＄嚎閫夋嫨鐢辩敤鎴锋樉寮忔帶鍒讹紝涓嶈嚜鍔ㄩ檷绾с€?"""
 
@@ -9,14 +9,21 @@ import sys
 import logging
 from pathlib import Path
 
+WORKSPACE_ROOT = Path(
+    os.environ.get(
+        "WEB_SCRAPER_WORKSPACE_ROOT",
+        str(Path(__file__).resolve().parents[3]),
+    )
+)
+
 # ============================================================
 # 鏃ュ織
 # ============================================================
 
 LOG_FORMAT = "[%(asctime)s] %(levelname)s [%(name)s] %(message)s"
-LOG_LEVEL = getattr(logging, os.environ.get("ARTICLE_READER_LOG_LEVEL", "INFO"))
+LOG_LEVEL = getattr(logging, os.environ.get("WEB_SCRAPER_LOG_LEVEL", "INFO"))
 
-logger = logging.getLogger("article_reader")
+logger = logging.getLogger("web_scraper")
 logger.setLevel(LOG_LEVEL)
 
 if not logger.handlers:
@@ -31,15 +38,29 @@ if not logger.handlers:
 BPC_EXTENSION_PATH = Path(
     os.environ.get(
         "BPC_EXTENSION_PATH",
-        str(Path(os.environ.get("USERPROFILE", "")) / "Desktop" / "bypass-paywalls-chrome-clean-master"),
+        str(WORKSPACE_ROOT / "bypass_paywalls_chrome"),
     )
 )
 
 BPC_UPDATE_URL = os.environ.get(
     "BPC_UPDATE_URL",
-    "https://gitflic.ru/project/magnolia1234/bypass-paywalls-chrome-clean",
+    "https://gitflic.ru/project/magnolia1234/bpc_uploads",
 )
 
+BPC_CHROME_ZIP_URL = os.environ.get(
+    "BPC_CHROME_ZIP_URL",
+    "https://gitflic.ru/project/magnolia1234/bpc_uploads/blob/raw?file=bypass-paywalls-chrome-clean-master.zip",
+)
+BPC_FIREFOX_EXTENSION_PATH = Path(
+    os.environ.get(
+        "BPC_FIREFOX_EXTENSION_PATH",
+        str(WORKSPACE_ROOT / "bypass_paywalls_firefox"),
+    )
+)
+BPC_FIREFOX_ZIP_URL = os.environ.get(
+    "BPC_FIREFOX_ZIP_URL",
+    "https://gitflic.ru/project/magnolia1234/bpc_uploads/blob/raw?file=bypass-paywalls-firefox-clean-master.zip",
+)
 BPC_UPDATE_INTERVAL_SEC = int(os.environ.get("BPC_UPDATE_INTERVAL_SEC", "86400"))
 BPC_SITES_JS = BPC_EXTENSION_PATH / "sites.js"
 
@@ -52,21 +73,21 @@ CLOAKBROWSER_BINARY = os.environ.get("CLOAKBROWSER_BINARY", None)
 # 娴忚鍣ㄩ€氱敤閰嶇疆
 # ============================================================
 
-HEADLESS_DEFAULT = os.environ.get("ARTICLE_READER_HEADLESS") in ("1", "true", "yes")
+HEADLESS_DEFAULT = os.environ.get("WEB_SCRAPER_HEADLESS") in ("1", "true", "yes")
 
 VIEWPORT = {
-    "width": int(os.environ.get("ARTICLE_READER_VP_WIDTH", "1280")),
-    "height": int(os.environ.get("ARTICLE_READER_VP_HEIGHT", "900")),
+    "width": int(os.environ.get("WEB_SCRAPER_VP_WIDTH", "1280")),
+    "height": int(os.environ.get("WEB_SCRAPER_VP_HEIGHT", "900")),
 }
 
 USER_AGENT = os.environ.get(
-    "ARTICLE_READER_UA",
+    "WEB_SCRAPER_UA",
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
     "(KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36",
 )
 
-PAGE_GOTO_TIMEOUT = int(os.environ.get("ARTICLE_READER_GOTO_TIMEOUT", "60000"))
-PAGE_WAIT_RENDER_MS = int(os.environ.get("ARTICLE_READER_WAIT_RENDER", "5000"))
+PAGE_GOTO_TIMEOUT = int(os.environ.get("WEB_SCRAPER_GOTO_TIMEOUT", "60000"))
+PAGE_WAIT_RENDER_MS = int(os.environ.get("WEB_SCRAPER_WAIT_RENDER", "5000"))
 
 # ============================================================
 # 姹?A 閰嶇疆锛堢绾?2锛氬熀纭€娓叉煋锛?# ============================================================
@@ -89,7 +110,7 @@ POOL_B_REBUILD_DAYS = int(os.environ.get("POOL_B_REBUILD_DAYS", "14"))
 POOL_B_PROFILE_ROOT = Path(
     os.environ.get(
         "POOL_B_PROFILE_ROOT",
-        str(Path(os.environ.get("ARTICLE_READER_PROFILE_ROOT", "./browser_profile/pool_b"))),
+        str(Path(os.environ.get("WEB_SCRAPER_PROFILE_ROOT", "./browser_profile/pool_b"))),
     )
 )
 
@@ -97,7 +118,7 @@ POOL_B_PROFILE_ROOT = Path(
 POOL_B_COOKIE_BACKUP_DIR = Path(
     os.environ.get(
         "POOL_B_COOKIE_BACKUP_DIR",
-        str(Path(os.environ.get("ARTICLE_READER_COOKIE_BACKUP", "./browser_profile/pool_b_cookie_backups"))),
+        str(Path(os.environ.get("WEB_SCRAPER_COOKIE_BACKUP", "./browser_profile/pool_b_cookie_backups"))),
     )
 )
 
@@ -134,7 +155,7 @@ PROXY_GROUP_3B = [
 ]
 
 # 鍚戝悗鍏煎锛氬崟涓€ PROXY 鐜鍙橀噺鏄犲皠鍒版墍鏈夌粍
-_SINGLE_PROXY = os.environ.get("ARTICLE_READER_PROXY", "")
+_SINGLE_PROXY = os.environ.get("WEB_SCRAPER_PROXY", "")
 if _SINGLE_PROXY and not any([PROXY_GROUP_1, PROXY_GROUP_2, PROXY_GROUP_3A, PROXY_GROUP_3B]):
     PROXY_GROUP_1 = [_SINGLE_PROXY]
     PROXY_GROUP_2 = [_SINGLE_PROXY]
@@ -160,9 +181,9 @@ class ExtractStrategy:
     TRAFILATURA = "trafilatura"
 
 
-DEFAULT_EXTRACT_STRATEGY = os.environ.get("ARTICLE_READER_EXTRACT_STRATEGY", ExtractStrategy.TRAFILATURA)
-MIN_CONTENT_LENGTH = int(os.environ.get("ARTICLE_READER_MIN_CONTENT", "200"))
-USE_TRAFILATURA = os.environ.get("ARTICLE_READER_USE_TRAFILATURA", "1") in ("1", "true", "yes")
+DEFAULT_EXTRACT_STRATEGY = os.environ.get("WEB_SCRAPER_EXTRACT_STRATEGY", ExtractStrategy.TRAFILATURA)
+MIN_CONTENT_LENGTH = int(os.environ.get("WEB_SCRAPER_MIN_CONTENT", "200"))
+USE_TRAFILATURA = os.environ.get("WEB_SCRAPER_USE_TRAFILATURA", "1") in ("1", "true", "yes")
 # ============================================================
 # 绠＄嚎澶辫触鍒ゅ畾淇″彿
 # ============================================================
@@ -201,9 +222,9 @@ PAYWALL_BLOCKLIST = [
 # 鍋ュ悍妫€鏌?& 璧勬簮娓呯悊
 # ============================================================
 
-HEALTH_CHECK_INTERVAL_SEC = int(os.environ.get("ARTICLE_READER_HEALTH_SEC", "60"))
-PRELOAD_BROWSERS = os.environ.get("ARTICLE_READER_PRELOAD", "0") in ("1", "true", "yes")
-KEEP_ALIVE = os.environ.get("ARTICLE_READER_KEEP_ALIVE", "0") in ("1", "true", "yes")
+HEALTH_CHECK_INTERVAL_SEC = int(os.environ.get("WEB_SCRAPER_HEALTH_SEC", "60"))
+PRELOAD_BROWSERS = os.environ.get("WEB_SCRAPER_PRELOAD", "0") in ("1", "true", "yes")
+KEEP_ALIVE = os.environ.get("WEB_SCRAPER_KEEP_ALIVE", "0") in ("1", "true", "yes")
 
 # ============================================================
 # 鍚戝悗鍏煎鍒悕

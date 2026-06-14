@@ -9,7 +9,7 @@ from path_setup import add_src_to_path
 
 add_src_to_path()
 
-from article_reader import ArticleInfo, RSSValidator, URLTransformer, WallDetector
+from web_scraper import ArticleInfo, RSSValidator, URLTransformer, WallDetector
 
 
 def test_wall_detection() -> None:

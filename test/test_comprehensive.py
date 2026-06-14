@@ -23,10 +23,10 @@ if sys.platform == 'win32':
     sys.stdout.reconfigure(encoding='utf-8')
     sys.stderr.reconfigure(encoding='utf-8')
 
-# 确保能找到 article_reader 包
+# 确保能找到 web_scraper 包
 add_src_to_path()
 
-from article_reader import ArticleReader
+from web_scraper import ArticleReader
 
 # ============================================================
 # 测试站点配置
@@ -340,7 +340,7 @@ async def main():
     """主测试流程"""
     args = parse_args()
 
-    print_header("Article Reader 全面测试")
+    print_header("Web Scraper 全面测试")
 
     # 选择要测试的网站
     sites_to_test = []
