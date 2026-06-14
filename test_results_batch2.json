@@ -1,0 +1,206 @@
+{
+  "timestamp": "2026-06-14T12:01:22.108320",
+  "total": 18,
+  "success": 17,
+  "failed": 1,
+  "results": [
+    {
+      "name": "tradingview_3",
+      "url": "https://www.tradingview.com/news/reuters.com,2026:newsml_FWN42K0MV:0-dr-reddy-s-announces-first-to-market-launch-of-bosutinib-tablets-400mg-in-the-united-states/",
+      "success": true,
+      "pipeline_level": 4,
+      "method": "pipeline4:pool_c_bpc",
+      "elapsed_ms": 88554.50360005489,
+      "content_length": 276,
+      "title": "Dr Reddy's Announces First-To-Market Launch Of Bosutinib Tablets 400Mg In The United States",
+      "error": ""
+    },
+    {
+      "name": "yahoo_hk_1",
+      "url": "https://hk.finance.yahoo.com/news/%E6%AE%BC%E7%89%8C-ceo-%E7%9F%B3%E6%B2%B9%E5%B8%82%E5%A0%B4%E9%9D%A2%E8%87%A8%E8%BF%9110%E5%84%84%E6%A1%B6%E4%BE%9B%E6%87%89%E7%BC%BA%E5%8F%A3-052754238.html",
+      "success": true,
+      "pipeline_level": 1,
+      "method": "pipeline1:scrapling_fetcher",
+      "elapsed_ms": 1685.3995000128634,
+      "content_length": 223,
+      "title": "Yahoo",
+      "error": ""
+    },
+    {
+      "name": "yahoo_hk_2",
+      "url": "https://hk.finance.yahoo.com/news/%E4%BA%BA%E8%A1%8C-%E7%B9%BC%E7%BA%8C%E5%AF%A6%E6%96%BD%E9%81%A9%E5%BA%A6%E5%AF%AC%E9%AC%86%E8%B2%A8%E5%B9%A3%E6%94%BF%E7%AD%96-%E5%AF%86%E5%88%87%E9%97%9C%E6%B3%A8%E8%BC%B8%E5%85%A5%E6%80%A7%E9%80%9A%E8%84%B9%E5%BD%B1%E9%9F%BF-053058952.html",
+      "success": true,
+      "pipeline_level": 1,
+      "method": "pipeline1:scrapling_fetcher",
+      "elapsed_ms": 918.90519997105,
+      "content_length": 223,
+      "title": "Yahoo",
+      "error": ""
+    },
+    {
+      "name": "bloomberg_3",
+      "url": "https://www.bloomberg.com/news/articles/2026-06-13/ber-zugang-wie-emirates-40-jahre-kampf-um-berlin-fluge-die-geduld-aller-testet",
+      "success": true,
+      "pipeline_level": 4,
+      "method": "pipeline4:pool_c_bpc",
+      "elapsed_ms": 100012.23389996449,
+      "content_length": 609,
+      "title": "BER-Zugang: Wie Emirates’ 40-jähriger Kampf um Flüge nach Berlin die Geduld aller strapaziert",
+      "error": ""
+    },
+    {
+      "name": "eeo_3",
+      "url": "http://www.eeo.com.cn/2026/0613/913780.shtml",
+      "success": true,
+      "pipeline_level": 4,
+      "method": "pipeline4:pool_c_bpc",
+      "elapsed_ms": 42043.01210003905,
+      "content_length": 303,
+      "title": "经济观察网 － 专业财经新闻网站",
+      "error": ""
+    },
+    {
+      "name": "ft_4",
+      "url": "https://www.ft.com/content/03c754d7-5188-481a-a920-ae5d35eebb3f",
+      "success": true,
+      "pipeline_level": 4,
+      "method": "pipeline4:pool_c_bpc",
+      "elapsed_ms": 86885.17130003311,
+      "content_length": 1064,
+      "title": "It’s time to celebrate Chenin Blanc",
+      "error": ""
+    },
+    {
+      "name": "ft_5",
+      "url": "https://www.ft.com/content/b31f1e09-5aae-4cad-af15-97adb15dba70",
+      "success": true,
+      "pipeline_level": 4,
+      "method": "pipeline4:pool_c_bpc",
+      "elapsed_ms": 80402.36680000089,
+      "content_length": 1128,
+      "title": "AI is revolutionising the stock market",
+      "error": ""
+    },
+    {
+      "name": "ft_6",
+      "url": "https://www.ft.com/content/97b19a58-88e1-4b43-82a1-3e57013c8ebf",
+      "success": true,
+      "pipeline_level": 4,
+      "method": "pipeline4:pool_c_bpc",
+      "elapsed_ms": 84488.65979997208,
+      "content_length": 13722,
+      "title": "The concrete sanctuary at Europe’s furthest fringe",
+      "error": ""
+    },
+    {
+      "name": "eeo_4",
+      "url": "http://www.eeo.com.cn/2026/0613/913607.shtml",
+      "success": true,
+      "pipeline_level": 4,
+      "method": "pipeline4:pool_c_bpc",
+      "elapsed_ms": 38136.777300038375,
+      "content_length": 302,
+      "title": "闽东电力被市场讨论归类为发电龙头股 需注意基本面差距",
+      "error": ""
+    },
+    {
+      "name": "ft_7",
+      "url": "https://www.ft.com/content/66f3005d-0342-4f30-a995-ad74b6bc6fac",
+      "success": true,
+      "pipeline_level": 4,
+      "method": "pipeline4:pool_c_bpc",
+      "elapsed_ms": 91356.46659997292,
+      "content_length": 35050,
+      "title": "Transcript: Brexit at 10 — What comes next? With Anand Menon",
+      "error": ""
+    },
+    {
+      "name": "jiemian_2",
+      "url": "https://www.jiemian.com/article/14582532.html",
+      "success": true,
+      "pipeline_level": 4,
+      "method": "pipeline4:pool_c_bpc",
+      "elapsed_ms": 13087.01800002018,
+      "content_length": 494,
+      "title": "日媒报道称日本央行下周或将上调政策利率",
+      "error": ""
+    },
+    {
+      "name": "wsj_cn",
+      "url": "https://cn.wsj.com/articles/%E6%B3%95%E5%AE%98%E5%8F%AB%E5%81%9C%E7%89%B9%E6%9C%97%E6%99%AE-%E5%8F%8D%E6%AD%A6%E5%99%A8%E5%8C%96-%E5%9F%BA%E9%87%91-%E5%B9%B6%E8%A6%81%E6%B1%82%E7%A1%AE%E4%BF%9D%E8%AF%A5%E5%9F%BA%E9%87%91%E5%B7%B2%E5%BD%BB%E5%BA%95%E5%85%B3%E5%81%9C-a7a1b5b1?mod=cn_hp_lead_pos5",
+      "success": true,
+      "pipeline_level": 4,
+      "method": "pipeline4:pool_c_bpc",
+      "elapsed_ms": 115848.53919997113,
+      "content_length": 445,
+      "title": "法官叫停特朗普“反武器化”基金，并要求确保该基金已彻底关停",
+      "error": ""
+    },
+    {
+      "name": "wsj_3",
+      "url": "https://www.wsj.com/business/energy-oil/why-oil-prices-havent-shot-through-the-roofyet-bca1f60b?mod=rss_markets_main",
+      "success": true,
+      "pipeline_level": 4,
+      "method": "pipeline4:pool_c_bpc",
+      "elapsed_ms": 100316.45030004438,
+      "content_length": 497,
+      "title": "Why Oil Prices Haven’t Shot Through the Roof—Yet",
+      "error": ""
+    },
+    {
+      "name": "tradingview_4",
+      "url": "https://www.tradingview.com/news/DJN_DN20260612000711:0/",
+      "success": true,
+      "pipeline_level": 4,
+      "method": "pipeline4:pool_c_bpc",
+      "elapsed_ms": 81647.53459999338,
+      "content_length": 447,
+      "title": "News by Dow Jones Newswires on TradingView, 2026-06-13",
+      "error": ""
+    },
+    {
+      "name": "chinatimes",
+      "url": "https://stock.10jqka.com.cn/20260613/c677439833.shtml",
+      "success": false,
+      "pipeline_level": 0,
+      "method": "-",
+      "elapsed_ms": 57623.86100000003,
+      "content_length": 0,
+      "title": "",
+      "error": "All 5 pipelines failed: Pipeline 1: blocked/empty/redirect to captcha; Pipeline 2: captcha/403/access denied; Pipeline 3: still blocked by WAF; Pipeline 4: insufficient content after BPC; Pipeline 5: "
+    },
+    {
+      "name": "yahoo_finance_2",
+      "url": "https://finance.yahoo.com/topic/economic-news/",
+      "success": true,
+      "pipeline_level": 1,
+      "method": "pipeline1:scrapling_fetcher",
+      "elapsed_ms": 1368.9263999694958,
+      "content_length": 223,
+      "title": "Yahoo",
+      "error": ""
+    },
+    {
+      "name": "forbes_retry",
+      "url": "https://www.forbes.com/sites/daraabasiita/2026/06/13/methanes-new-referee-is-a-machine/",
+      "success": true,
+      "pipeline_level": 4,
+      "method": "pipeline4:pool_c_bpc",
+      "elapsed_ms": 99827.91970000835,
+      "content_length": 8559,
+      "title": "Methane's New Referee Is A Machine",
+      "error": ""
+    },
+    {
+      "name": "bloomberg_retry",
+      "url": "https://www.bloomberg.com/news/articles/2026-06-13/fed-boe-to-hold-rates-as-trump-seeks-iran-peace-deal",
+      "success": true,
+      "pipeline_level": 4,
+      "method": "pipeline4:pool_c_bpc",
+      "elapsed_ms": 98119.79419999989,
+      "content_length": 423,
+      "title": "Fed and BOE Stay Guarded After 100 Days of Iran War",
+      "error": ""
+    }
+  ]
+}
