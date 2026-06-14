@@ -1,170 +1,115 @@
 # -*- coding: utf-8 -*-
-"""
-pipelines/pipeline.py — 四级管线调度器 v3.0
+"""Pipeline manager for web_scraper.
 
-管线 1→2→3→4 逐级自动重试，全部失败标记站点暂不可抓取。
+The manager keeps the public five-stage degradation model while making the
+lightweight access paths broad and diagnosable:
+
+1. HTTP clients with browser-like fingerprints.
+2. Basic browser render.
+3. High-protection browser render.
+4. Paywall/BPC browser render.
+5. Reader/archive/AMP/print/referer fallbacks.
 """
+
+from __future__ import annotations
 
 import asyncio
+import gzip
+import importlib.util
 import re
 import time
 from dataclasses import dataclass, field
 from typing import Optional
-from urllib.parse import urlparse
+from urllib.parse import quote_plus, urlparse
 
-from ..browser_pool import PoolA, PoolB, PoolC, BrowserSlot
-from ..content_extractor import ContentExtractor
-from ..models import PipelineResult
-from ..proxies import (
-    PipelineProxyPool,
-    ResidentialRotatingPool,
-    StaticBoundPool,
-)
+from ..browser_pool import BrowserSlot, PoolA, PoolB, PoolC
 from ..config import (
+    MIN_CONTENT_LENGTH,
+    PAGE_GOTO_TIMEOUT,
+    PAGE_WAIT_RENDER_MS,
+    PAYWALL_DETECT_SIGNALS,
+    PIPELINE_FAILURE_SIGNALS,
     PROXY_GROUP_1,
     PROXY_GROUP_2,
     PROXY_GROUP_3A,
     PROXY_GROUP_3B,
-    PAGE_GOTO_TIMEOUT,
-    PAGE_WAIT_RENDER_MS,
-    PIPELINE_FAILURE_SIGNALS,
-    PAYWALL_DETECT_SIGNALS,
-    MIN_CONTENT_LENGTH,
     USER_AGENT,
     logger,
 )
+from ..content_extractor import ContentExtractor
+from ..models import PipelineResult
+from ..proxies import PipelineProxyPool, ResidentialRotatingPool, StaticBoundPool
 from .anti_block import WallDetector
+from .levels import PipelineLevel
 
-
-# ============================================================
-# 管线级别枚举
-# ============================================================
-
-class PipelineLevel:
-    """管线级别"""
-    HTTP = 1
-    BASIC_RENDER = 2
-    HIGH_PROTECT = 3
-    PAYWALL = 4
-
-    @classmethod
-    def all_levels(cls) -> list[int]:
-        return [cls.HTTP, cls.BASIC_RENDER, cls.HIGH_PROTECT, cls.PAYWALL]
-
-    @classmethod
-    def name(cls, level: int) -> str:
-        return {
-            cls.HTTP: "HTTP轻量",
-            cls.BASIC_RENDER: "基础渲染",
-            cls.HIGH_PROTECT: "高防护",
-            cls.PAYWALL: "付费墙",
-        }.get(level, f"未知管线{level}")
-
-
-# ============================================================
-# 结果数据结构
-
-
-# ============================================================
 
 class PipelineError(Exception):
+    """Pipeline execution error with the failed level attached."""
+
     def __init__(self, message: str, pipeline_level: int, cause: Optional[Exception] = None):
         super().__init__(message)
         self.pipeline_level = pipeline_level
         self.cause = cause
 
 
-# ============================================================
-# 失败站点记录
-# ============================================================
-
 @dataclass
 class FailedSite:
-    """四级管线全部失败的站点记录"""
+    """Temporary record for a domain that failed all access paths."""
+
     domain: str
     url: str
     failed_at: float
     reason: str
-    pipeline_results: list = field(default_factory=list)
-    expires_at: float = 0.0  # 过期时间戳（默认 24 小时后）
+    pipeline_results: list[PipelineResult] = field(default_factory=list)
+    expires_at: float = 0.0
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         if self.expires_at == 0.0:
-            self.expires_at = self.failed_at + 86400  # 24 小时后过期
+            self.expires_at = self.failed_at + 86400
 
     @property
     def is_expired(self) -> bool:
         return time.time() > self.expires_at
 
 
-# ============================================================
-# 四级管线管理器
-# ============================================================
-
 class PipelineManager:
-    """
-    四级管线管理器。
-    管线 1→2→3→4 逐级自动重试。
-    全部失败标记站点暂不可抓取。
-    """
+    """Five-level fetch pipeline with lazy browser pools and rich diagnostics."""
 
     def __init__(self):
-        # 代理池
         self._proxy_g1 = PipelineProxyPool(PROXY_GROUP_1)
         self._proxy_g2 = ResidentialRotatingPool(PROXY_GROUP_2)
         self._proxy_g3a = StaticBoundPool(PROXY_GROUP_3A, pool_name="pool_b")
         self._proxy_g3b = StaticBoundPool(PROXY_GROUP_3B, pool_name="pool_c")
 
-        # 浏览器池
         self._pool_a: Optional[PoolA] = None
         self._pool_b: Optional[PoolB] = None
         self._pool_c: Optional[PoolC] = None
-
-        # 失败站点记录
+        self._started = False
         self._failed_sites: dict[str, FailedSite] = {}
-        
-        # 管线统计
-        self._pipeline_stats = {
+        self._pipeline_stats: dict[object, dict[str, int] | int] = {
             1: {"success": 0, "failure": 0},
             2: {"success": 0, "failure": 0},
             3: {"success": 0, "failure": 0},
             4: {"success": 0, "failure": 0},
-            "degradation_count": 0,  # 降级流转次数
+            5: {"success": 0, "failure": 0},
+            "degradation_count": 0,
         }
 
-        self._started = False
-
-    async def start(self):
-        if self._started:
-            return
-
-        self._pool_a = PoolA(proxy_provider=self._proxy_g2)
-        self._pool_b = PoolB(proxy_provider=self._proxy_g3a)
-        self._pool_c = PoolC(proxy_provider=self._proxy_g3b)
-
-        await asyncio.gather(
-            self._pool_a.start(),
-            self._pool_b.start(),
-            self._pool_c.start(),
-        )
-
+    async def start(self) -> None:
         self._started = True
-        logger.info("PipelineManager started: 4 pipelines with auto-degradation")
+        logger.info("PipelineManager started: lazy browser pools, 5-level degradation")
 
-    async def shutdown(self):
-        if not self._started:
-            return
+    async def shutdown(self) -> None:
         await asyncio.gather(
             self._pool_a.shutdown() if self._pool_a else asyncio.sleep(0),
             self._pool_b.shutdown() if self._pool_b else asyncio.sleep(0),
             self._pool_c.shutdown() if self._pool_c else asyncio.sleep(0),
         )
+        self._pool_a = None
+        self._pool_b = None
+        self._pool_c = None
         self._started = False
         logger.info("PipelineManager shutdown")
-
-    # ============================================================
-    # 主入口：逐级自动重试
-    # ============================================================
 
     async def fetch(
         self,
@@ -172,371 +117,290 @@ class PipelineManager:
         extract_strategy: str = "trafilatura",
         **opts,
     ) -> PipelineResult:
-        """
-        执行四级管线逐级自动重试。
-        管线 1→2→3→4，前序失败自动流转下一级。
-        全部失败标记站点暂不可抓取。
-        """
         if not self._started:
             await self.start()
 
-        domain = urlparse(url).netloc
-
-        # 清理过期失败站点
         self._cleanup_expired_failed()
-
-        # 检查是否已标记为不可抓取
-        if domain in self._failed_sites:
-            failed = self._failed_sites[domain]
-            logger.warning("Site %s marked as unscrapable: %s", domain, failed.reason)
+        domain = urlparse(url).netloc
+        failed = self._failed_sites.get(domain)
+        if failed:
             return PipelineResult(
                 url=url,
                 success=False,
                 error=f"Site temporarily unscrapable: {failed.reason}",
                 method="blocked:failed_site",
-                meta={"failed_site": True},
+                meta={"failed_site": True, "domain": domain},
             )
 
+        requested_level = opts.get("pipeline_level")
+        levels = self._levels_from(requested_level, skip_browser=bool(opts.get("skip_browser")))
+        level_timeout = float(opts.get("level_timeout_sec", 15.0))
         t0 = time.monotonic()
-        pipeline_results = []
+        results: list[PipelineResult] = []
 
-        # ---- 管线 1: HTTP 轻量 ----
-        result = await self._pipeline_1_http(url, extract_strategy, **opts)
-        if result.success:
-            result.elapsed_ms = (time.monotonic() - t0) * 1000
-            result.pipeline_level = 1
-            self._pipeline_stats[1]["success"] += 1
-            logger.info("Pipeline 1 success for %s (%.0fms)", url, result.elapsed_ms)
-            return result
-        self._pipeline_stats[1]["failure"] += 1
-        pipeline_results.append(result)
-        logger.info("Pipeline 1 failed for %s: %s → escalate to pipeline 2", url, result.error)
+        previous_results: list[PipelineResult] = []
 
-        # ---- 管线 2: 基础渲染（池 A）----
-        result = await self._pipeline_2_basic_render(url, extract_strategy, **opts)
-        if result.success:
-            result.elapsed_ms = (time.monotonic() - t0) * 1000
-            result.pipeline_level = 2
-            self._pipeline_stats[2]["success"] += 1
-            self._pipeline_stats["degradation_count"] += 1
-            logger.info("Pipeline 2 success for %s (%.0fms)", url, result.elapsed_ms)
-            return result
-        self._pipeline_stats[2]["failure"] += 1
-        self._pipeline_stats["degradation_count"] += 1
-        pipeline_results.append(result)
-        logger.info("Pipeline 2 failed for %s: %s → escalate to pipeline 3", url, result.error)
+        for level in levels:
+            timeout = self._timeout_for_level(level, level_timeout, opts)
+            try:
+                result = await asyncio.wait_for(
+                    self._run_level(level, url, extract_strategy, previous_results=previous_results, **opts),
+                    timeout=timeout,
+                )
+            except asyncio.TimeoutError:
+                result = PipelineResult(
+                    url=url,
+                    success=False,
+                    method=f"pipeline{level}:timeout",
+                    error=f"Pipeline {level} timeout after {timeout:.1f}s",
+                )
+            result.pipeline_level = level if result.success else result.pipeline_level
+            results.append(result)
+            if result.success and (level != PipelineLevel.HIGH_PROTECT or not self._detect_paywall(result)):
+                result.elapsed_ms = (time.monotonic() - t0) * 1000
+                self._mark_stats(level, True, degraded=len(results) > 1)
+                return result
+            self._mark_stats(level, False, degraded=len(results) > 1)
+            previous_results.append(result)
 
-        # ---- 管线 3: 高防护（池 B）----
-        result = await self._pipeline_3_high_protection(url, extract_strategy, **opts)
-        if result.success and not self._detect_paywall(result):
-            # 管线 3 成功且无付费墙 → 直接返回
-            result.elapsed_ms = (time.monotonic() - t0) * 1000
-            result.pipeline_level = 3
-            self._pipeline_stats[3]["success"] += 1
-            self._pipeline_stats["degradation_count"] += 1
-            logger.info("Pipeline 3 success for %s (%.0fms)", url, result.elapsed_ms)
-            return result
-        self._pipeline_stats[3]["failure"] += 1
-        self._pipeline_stats["degradation_count"] += 1
-        
-        # 管线 3 失败或检测到付费墙 → 流转管线 4
-        if result.success and self._detect_paywall(result):
-            logger.info("Pipeline 3 success but paywall detected for %s → escalate to pipeline 4", url)
-        elif not result.success:
-            logger.info("Pipeline 3 failed for %s: %s → escalate to pipeline 4", url, result.error)
-        pipeline_results.append(result)
-
-        # ---- 管线 4: 付费墙（池 C）----
-        result = await self._pipeline_4_paywall(url, extract_strategy, **opts)
-        if result.success:
-            result.elapsed_ms = (time.monotonic() - t0) * 1000
-            result.pipeline_level = 4
-            self._pipeline_stats[4]["success"] += 1
-            self._pipeline_stats["degradation_count"] += 1
-            logger.info("Pipeline 4 success for %s (%.0fms)", url, result.elapsed_ms)
-            return result
-        self._pipeline_stats[4]["failure"] += 1
-        self._pipeline_stats["degradation_count"] += 1
-        pipeline_results.append(result)
-
-        # ---- 管线 5: 反封锁突破（Archive/Cache/Reader Mode）----
-        result = await self._pipeline_5_bypass(url, extract_strategy, pipeline_results, **opts)
-        if result.success:
-            result.elapsed_ms = (time.monotonic() - t0) * 1000
-            result.pipeline_level = 5
-            self._pipeline_stats["degradation_count"] += 1
-            logger.info("Pipeline 5 bypass success for %s (%.0fms)", url, result.elapsed_ms)
-            return result
-        pipeline_results.append(result)
-
-        # ---- 全部失败：标记站点不可抓取 ----
         elapsed = (time.monotonic() - t0) * 1000
-        error_summary = "; ".join(r.error or "unknown" for r in pipeline_results)
+        error_summary = "; ".join(r.error or r.method or "unknown" for r in results)
         self._failed_sites[domain] = FailedSite(
             domain=domain,
             url=url,
             failed_at=time.time(),
             reason=error_summary[:500],
-            pipeline_results=pipeline_results,
+            pipeline_results=results,
         )
-        logger.error(
-            "All 5 pipelines failed for %s (%.0fms) → site marked unscrapable: %s",
-            domain, elapsed, error_summary[:200],
-        )
-
         return PipelineResult(
             url=url,
             success=False,
             error=f"All 5 pipelines failed: {error_summary[:300]}",
             elapsed_ms=elapsed,
-            pipeline_level=0,
-            meta={"all_pipelines_failed": True, "domain": domain},
+            method="pipeline:all_failed",
+            meta={
+                "all_pipelines_failed": True,
+                "domain": domain,
+                "attempts": [self._result_meta(r) for r in results],
+            },
         )
 
-    # ============================================================
-    # 管线 1: HTTP 轻量（Scrapling Fetcher / curl_cffi）
-    # ============================================================
+    def _levels_from(self, requested_level: object, *, skip_browser: bool = False) -> list[int]:
+        if requested_level in {PipelineLevel.HTTP, PipelineLevel.BASIC_RENDER, PipelineLevel.HIGH_PROTECT, PipelineLevel.PAYWALL, 5}:
+            start = int(requested_level)
+            levels = [level for level in [1, 2, 3, 4, 5] if level >= start]
+        else:
+            levels = [1, 2, 3, 4, 5]
+        if skip_browser:
+            levels = [level for level in levels if level in {PipelineLevel.HTTP, 5}]
+        return levels
+
+    async def _run_level(
+        self,
+        level: int,
+        url: str,
+        extract_strategy: str,
+        *,
+        previous_results: list[PipelineResult],
+        **opts,
+    ) -> PipelineResult:
+        if level == PipelineLevel.HTTP:
+            return await self._pipeline_1_http(url, extract_strategy, **opts)
+        if level == PipelineLevel.BASIC_RENDER:
+            return await self._pipeline_2_basic_render(url, extract_strategy, **opts)
+        if level == PipelineLevel.HIGH_PROTECT:
+            return await self._pipeline_3_high_protection(url, extract_strategy, **opts)
+        if level == PipelineLevel.PAYWALL:
+            return await self._pipeline_4_paywall(url, extract_strategy, **opts)
+        return await self._pipeline_5_bypass(url, extract_strategy, previous_results, **opts)
+
+    def _timeout_for_level(self, level: int, base_timeout: float, opts: dict) -> float:
+        if level == PipelineLevel.HTTP:
+            return float(opts.get("http_timeout_sec", min(base_timeout, 20.0)))
+        if level in {PipelineLevel.BASIC_RENDER, PipelineLevel.HIGH_PROTECT}:
+            return float(opts.get("browser_timeout_sec", min(base_timeout, 12.0)))
+        if level == PipelineLevel.PAYWALL:
+            return float(opts.get("paywall_timeout_sec", min(base_timeout, 15.0)))
+        return float(opts.get("bypass_timeout_sec", max(base_timeout, 20.0)))
 
     async def _pipeline_1_http(self, url: str, extract_strategy: str, **opts) -> PipelineResult:
         proxy = await self._proxy_g1.acquire()
         proxy_success = False
+        t0 = time.monotonic()
+        errors: list[str] = []
 
         try:
-            try:
-                from scrapling import Fetcher
-                fetcher = Fetcher(auto_referer=True, timeout=30)
-                # Use asyncio.to_thread to avoid blocking the event loop
-                resp = await asyncio.to_thread(fetcher.get, url, proxy=proxy)
-                # Scrapling Fetcher Response API: .html_content 获取 HTML 文本
-                html = resp.html_content if hasattr(resp, 'html_content') else resp.content if hasattr(resp, 'content') else resp.html
-                final_url = str(resp.url)
-                method = "scrapling_fetcher"
-            except ImportError:
-                import requests
-                headers = {
-                    "User-Agent": USER_AGENT,
-                    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
-                    "Accept-Language": "en-US,en;q=0.9",
-                    "Cache-Control": "no-cache",
-                    "Pragma": "no-cache",
-                }
-                proxies = {"http": proxy, "https": proxy} if proxy else None
-                # Use asyncio.to_thread to avoid blocking the event loop
-                resp = await asyncio.to_thread(
-                    requests.get, url, headers=headers, proxies=proxies, timeout=30, allow_redirects=True
-                )
-                resp.raise_for_status()
-                html = resp.text
-                final_url = resp.url
-                method = "requests"
+            for fetch_method in (
+                self._try_curl_cffi_http,
+                self._try_scrapling_http,
+                self._try_httpx_http,
+            ):
+                try:
+                    html, final_url, method = await fetch_method(url, proxy=proxy, timeout=opts.get("timeout", 30))
+                except Exception as exc:
+                    errors.append(f"{fetch_method.__name__}: {str(exc)[:160]}")
+                    continue
 
-            # 失败判定
-            if self._is_pipeline_failure(html):
-                return PipelineResult(
-                    url=url, final_url=final_url, html=html,
+                if self._is_pipeline_failure(html):
+                    errors.append(f"{method}: blocked/challenge markers")
+                    continue
+
+                result = self._extract_result(
+                    url=url,
+                    final_url=final_url,
+                    html=html,
                     method=f"pipeline1:{method}",
-                    success=False,
-                    error="Pipeline 1: blocked/empty/redirect to captcha",
+                    extract_strategy=extract_strategy,
+                    elapsed_ms=(time.monotonic() - t0) * 1000,
                 )
+                if result.success:
+                    proxy_success = True
+                    return result
+                errors.append(f"{method}: {result.error}")
 
-            # 内容提取
-            extracted = ContentExtractor(strategy=extract_strategy).extract(html, url)
-
-            if len(extracted.content) < MIN_CONTENT_LENGTH:
-                return PipelineResult(
-                    url=url, final_url=final_url, html=html,
-                    method=f"pipeline1:{method}",
-                    success=False,
-                    error=f"Pipeline 1: content too short ({len(extracted.content)} chars)",
-                )
-
-            proxy_success = True
             return PipelineResult(
-                url=url, final_url=final_url,
-                title=extracted.title, content=extracted.content, html=html,
-                author=extracted.author, date=extracted.date,
-                length=len(extracted.content), content_type="page",
-                method=f"pipeline1:{method}", success=True,
-            )
-
-        except Exception as e:
-            return PipelineResult(
-                url=url, success=False,
-                error=f"Pipeline 1 exception: {str(e)[:200]}",
-                method="pipeline1:error",
+                url=url,
+                success=False,
+                method="pipeline1:http_all_failed",
+                error="Pipeline 1 HTTP attempts failed: " + "; ".join(errors),
+                elapsed_ms=(time.monotonic() - t0) * 1000,
+                meta={"http_errors": errors},
             )
         finally:
             if proxy:
                 await self._proxy_g1.release(proxy, success=proxy_success)
 
-    # ============================================================
-    # 管线 2: 基础渲染（池 A）
-    # ============================================================
+    async def _try_curl_cffi_http(self, url: str, *, proxy: Optional[str], timeout: float) -> tuple[str, str, str]:
+        try:
+            from curl_cffi import requests as curl_requests
+        except ImportError as exc:
+            raise RuntimeError("curl_cffi unavailable") from exc
+
+        proxies = {"http": proxy, "https": proxy} if proxy else None
+        errors: list[str] = []
+        for target in ("chrome124", "chrome", "chrome_android", "safari"):
+            try:
+                resp = await asyncio.to_thread(
+                    curl_requests.get,
+                    url,
+                    headers=self._desktop_headers(url),
+                    proxies=proxies,
+                    timeout=timeout,
+                    allow_redirects=True,
+                    impersonate=target,
+                )
+            except Exception as exc:
+                errors.append(f"{target}: {str(exc)[:80]}")
+                continue
+            if resp.status_code >= 400:
+                errors.append(f"{target}: HTTP {resp.status_code}")
+                continue
+            return resp.text, str(resp.url), f"curl_cffi_{target}"
+        raise RuntimeError("; ".join(errors) or "curl_cffi attempts failed")
+
+    async def _try_scrapling_http(self, url: str, *, proxy: Optional[str], timeout: float) -> tuple[str, str, str]:
+        try:
+            from scrapling import Fetcher
+        except ImportError as exc:
+            raise RuntimeError("scrapling unavailable") from exc
+
+        fetcher = Fetcher(auto_referer=True, timeout=timeout)
+        resp = await asyncio.to_thread(fetcher.get, url, proxy=proxy)
+        html = resp.html_content if hasattr(resp, "html_content") else resp.content if hasattr(resp, "content") else resp.html
+        if isinstance(html, bytes):
+            html = self._decode_bytes(html)
+        return str(html or ""), str(resp.url), "scrapling_fetcher"
+
+    async def _try_httpx_http(self, url: str, *, proxy: Optional[str], timeout: float) -> tuple[str, str, str]:
+        import httpx
+
+        kwargs = {
+            "follow_redirects": True,
+            "headers": self._desktop_headers(url),
+            "timeout": timeout,
+            "http2": self._http2_available(),
+        }
+        if proxy:
+            kwargs["proxy"] = proxy
+        async with httpx.AsyncClient(**kwargs) as client:
+            resp = await client.get(url)
+            if resp.status_code >= 400:
+                raise RuntimeError(f"HTTP {resp.status_code}")
+            return resp.text, str(resp.url), "httpx_http2"
 
     async def _pipeline_2_basic_render(self, url: str, extract_strategy: str, **opts) -> PipelineResult:
-        slot: Optional[BrowserSlot] = None
-        page = None
-
-        try:
-            slot = await self._pool_a.acquire()
-            page = await slot.context.new_page()
-            page.set_default_timeout(PAGE_GOTO_TIMEOUT)
-
-            html, title = await self._render_page(
-                page,
-                url,
-                selector="article, main, .content, .app, #app",
-                wait_ms=PAGE_WAIT_RENDER_MS,
-                scroll_delay=0.5,
-            )
-
-            # 失败判定
-            if self._is_pipeline_failure(html):
-                return PipelineResult(
-                    url=url, final_url=page.url, html=html, title=title,
-                    method="pipeline2:pool_a",
-                    success=False,
-                    error="Pipeline 2: captcha/403/access denied",
-                )
-
-            extracted = ContentExtractor(strategy=extract_strategy).extract(html, url)
-
-            if len(extracted.content) < MIN_CONTENT_LENGTH:
-                return PipelineResult(
-                    url=url, final_url=page.url, html=html, title=title,
-                    method="pipeline2:pool_a",
-                    success=False,
-                    error=f"Pipeline 2: content too short ({len(extracted.content)} chars)",
-                )
-
-            return PipelineResult(
-                url=url, final_url=page.url,
-                title=extracted.title or title, content=extracted.content, html=html,
-                author=extracted.author, date=extracted.date,
-                length=len(extracted.content), content_type="page",
-                method="pipeline2:pool_a", success=True,
-            )
-
-        except Exception as e:
-            return PipelineResult(
-                url=url, success=False,
-                error=f"Pipeline 2 exception: {str(e)[:200]}",
-                method="pipeline2:error",
-            )
-        finally:
-            if page:
-                try:
-                    await page.close()
-                except Exception:
-                    pass
-            if slot:
-                await self._pool_a.release(slot)
-
-    # ============================================================
-    # 管线 3: 高防护主力（池 B）
-    # ============================================================
+        await self._ensure_pool_a()
+        return await self._browser_fetch(url, extract_strategy, pool="a", method="pipeline2:pool_a")
 
     async def _pipeline_3_high_protection(self, url: str, extract_strategy: str, **opts) -> PipelineResult:
-        slot: Optional[BrowserSlot] = None
-        page = None
-
-        try:
-            domain = urlparse(url).netloc
-            slot = await self._pool_b.acquire(site_domain=domain)
-            page = await slot.context.new_page()
-            page.set_default_timeout(PAGE_GOTO_TIMEOUT)
-
-            html, title = await self._render_page(
-                page,
-                url,
-                selector="article, main, .content, .app, #app",
-                wait_ms=PAGE_WAIT_RENDER_MS * 2,
-                scroll_delay=1.0,
-            )
-
-            # 失败判定
-            if self._is_pipeline_failure(html):
-                return PipelineResult(
-                    url=url, final_url=page.url, html=html, title=title,
-                    method="pipeline3:pool_b",
-                    success=False,
-                    error="Pipeline 3: still blocked by WAF",
-                )
-
-            extracted = ContentExtractor(strategy=extract_strategy).extract(html, url)
-
-            if len(extracted.content) < MIN_CONTENT_LENGTH:
-                return PipelineResult(
-                    url=url, final_url=page.url, html=html, title=title,
-                    method="pipeline3:pool_b",
-                    success=False,
-                    error=f"Pipeline 3: content too short ({len(extracted.content)} chars)",
-                )
-
-            return PipelineResult(
-                url=url, final_url=page.url,
-                title=extracted.title or title, content=extracted.content, html=html,
-                author=extracted.author, date=extracted.date,
-                length=len(extracted.content), content_type="page",
-                method="pipeline3:pool_b", success=True,
-            )
-
-        except Exception as e:
-            return PipelineResult(
-                url=url, success=False,
-                error=f"Pipeline 3 exception: {str(e)[:200]}",
-                method="pipeline3:error",
-            )
-        finally:
-            if page:
-                try:
-                    await page.close()
-                except Exception:
-                    pass
-            if slot:
-                await self._pool_b.release(slot)
-
-    # ============================================================
-    # 管线 4: 付费墙专项（池 C）
-    # ============================================================
+        await self._ensure_pool_b()
+        return await self._browser_fetch(url, extract_strategy, pool="b", method="pipeline3:pool_b")
 
     async def _pipeline_4_paywall(self, url: str, extract_strategy: str, **opts) -> PipelineResult:
+        await self._ensure_pool_c()
+        return await self._browser_fetch(url, extract_strategy, pool="c", method="pipeline4:pool_c_bpc")
+
+    async def _ensure_pool_a(self) -> None:
+        if not self._pool_a:
+            self._pool_a = PoolA(proxy_provider=self._proxy_g2)
+            await self._pool_a.start()
+
+    async def _ensure_pool_b(self) -> None:
+        if not self._pool_b:
+            self._pool_b = PoolB(proxy_provider=self._proxy_g3a)
+            await self._pool_b.start()
+
+    async def _ensure_pool_c(self) -> None:
+        if not self._pool_c:
+            self._pool_c = PoolC(proxy_provider=self._proxy_g3b)
+            await self._pool_c.start()
+
+    async def _browser_fetch(self, url: str, extract_strategy: str, *, pool: str, method: str) -> PipelineResult:
         slot: Optional[BrowserSlot] = None
         page = None
-
+        t0 = time.monotonic()
         try:
-            slot = await self._pool_c.acquire()
+            if pool == "a":
+                slot = await self._pool_a.acquire()  # type: ignore[union-attr]
+            elif pool == "b":
+                slot = await self._pool_b.acquire(site_domain=urlparse(url).netloc)  # type: ignore[union-attr]
+            else:
+                slot = await self._pool_c.acquire()  # type: ignore[union-attr]
             page = await slot.context.new_page()
             page.set_default_timeout(PAGE_GOTO_TIMEOUT)
-
-            html, title = await self._render_page(
-                page,
-                url,
-                selector="article, main, .content",
-                wait_ms=PAGE_WAIT_RENDER_MS * 2,
-                scroll_delay=1.0,
+            await page.goto(url, wait_until="domcontentloaded", timeout=PAGE_GOTO_TIMEOUT)
+            try:
+                await page.wait_for_selector("article, main, .content, .app, #app, body", timeout=PAGE_WAIT_RENDER_MS)
+            except Exception:
+                pass
+            await self._humanish_scroll(page)
+            html = await page.content()
+            if self._is_pipeline_failure(html):
+                return PipelineResult(
+                    url=url,
+                    final_url=page.url,
+                    html=html,
+                    method=method,
+                    success=False,
+                    error=f"{method}: blocked/challenge markers",
+                    elapsed_ms=(time.monotonic() - t0) * 1000,
+                )
+            return self._extract_result(
+                url=url,
+                final_url=page.url,
+                html=html,
+                method=method,
+                extract_strategy=extract_strategy,
+                elapsed_ms=(time.monotonic() - t0) * 1000,
+                meta={"browser_pool": pool},
             )
-
-            extracted = ContentExtractor(strategy=extract_strategy).extract(html, url)
-
-            success = len(extracted.content) >= MIN_CONTENT_LENGTH
-
+        except Exception as exc:
             return PipelineResult(
-                url=url, final_url=page.url,
-                title=extracted.title or title, content=extracted.content, html=html,
-                author=extracted.author, date=extracted.date,
-                length=len(extracted.content), content_type="article",
-                method="pipeline4:pool_c_bpc",
-                success=success,
-                error=None if success else "Pipeline 4: insufficient content after BPC",
-                meta={"paywall": True},
-            )
-
-        except Exception as e:
-            return PipelineResult(
-                url=url, success=False,
-                error=f"Pipeline 4 exception: {str(e)[:200]}",
-                method="pipeline4:error",
+                url=url,
+                success=False,
+                method=f"{method}:error",
+                error=f"{method} exception: {str(exc)[:220]}",
+                elapsed_ms=(time.monotonic() - t0) * 1000,
             )
         finally:
             if page:
@@ -545,332 +409,345 @@ class PipelineManager:
                 except Exception:
                     pass
             if slot:
-                await self._pool_c.release_and_destroy(slot)
-
-    # ============================================================
-    # 管线 5: 反封锁突破（Archive/Cache/Reader Mode）
-    # ============================================================
+                if pool == "a":
+                    await self._pool_a.release(slot)  # type: ignore[union-attr]
+                elif pool == "b":
+                    await self._pool_b.release(slot)  # type: ignore[union-attr]
+                else:
+                    await self._pool_c.release_and_destroy(slot)  # type: ignore[union-attr]
 
     async def _pipeline_5_bypass(
         self,
         url: str,
         extract_strategy: str,
-        previous_results: list,
+        previous_results: list[PipelineResult],
         **opts,
     ) -> PipelineResult:
-        """尝试多种反封锁突破策略。
-
-        当管线 1-4 全部失败时，尝试：
-        - Wayback Machine (archive.org)
-        - Google Cache
-        - archive.today (archive.ph)
-        - Reader Mode URL
-        - 社交媒体 Referer 伪装
-        - 打印版/AMP 版 URL
-        """
-        # 收集之前管线的 HTML 用于墙类型检测
-        original_html = ""
-        original_content = ""
-        for r in previous_results:
-            if r.html:
-                original_html = r.html
-                original_content = r.content or ""
-                break
-
+        original_html = next((r.html for r in previous_results if r.html), "")
+        original_content = next((r.content for r in previous_results if r.content), "")
         wall_type = WallDetector.detect_wall_type(original_html, original_content)
-        logger.info("Pipeline 5 bypass: wall_type=%s for %s", wall_type, url)
+        method_timeout = float(opts.get("bypass_method_timeout_sec", 5.0))
+        t0 = time.monotonic()
+        errors: dict[str, str] = {}
 
-        # 尝试各种突破方式
-        bypass_attempts = []
-
-        # 0. Reader service variants; fast and often works for paywalled text.
-        bypass_attempts.append(("jina_reader", self._try_jina_reader(url)))
-        # 1. Wayback Machine
-        bypass_attempts.append(("archive_org", self._try_archive_org(url)))
-        # 2. Google Cache
-        bypass_attempts.append(("google_cache", self._try_google_cache(url)))
-        # 3. archive.today
-        bypass_attempts.append(("archive_today", self._try_archive_today(url)))
-        # 4. Reader Mode URL
-        bypass_attempts.append(("reader_mode", self._try_reader_mode(url)))
-        # 5. 社交媒体 Referer
-        bypass_attempts.append(("referer_social", self._try_referer_social(url)))
-        # 6. 打印版 URL
-        bypass_attempts.append(("print_version", self._try_print_version(url)))
-
-        for method_name, attempt in bypass_attempts:
+        attempts = (
+            ("jina_reader", self._try_jina_reader),
+            ("amp_print_reader", self._try_amp_print_reader),
+            ("referer_variants", self._try_referer_variants),
+            ("archive_org", self._try_archive_org),
+            ("archive_today", self._try_archive_today),
+            ("google_cache", self._try_google_cache),
+        )
+        for name, fn in attempts:
             try:
-                result = await attempt
-                if result and result.success:
-                    extracted = ContentExtractor(strategy=extract_strategy).extract(
-                        result.html, url
-                    )
-                    if len(extracted.content) >= MIN_CONTENT_LENGTH:
-                        return PipelineResult(
-                            url=url,
-                            final_url=result.final_url or url,
-                            title=extracted.title,
-                            content=extracted.content,
-                            html=result.html,
-                            author=extracted.author,
-                            date=extracted.date,
-                            length=len(extracted.content),
-                            content_type="article",
-                            method=f"pipeline5:{method_name}",
-                            success=True,
-                            meta={"bypass_method": method_name, "wall_type": wall_type},
-                        )
-            except Exception as e:
-                logger.debug("Pipeline 5 %s failed: %s", method_name, e)
+                result = await asyncio.wait_for(fn(url, timeout=method_timeout), timeout=method_timeout + 1.0)
+            except asyncio.TimeoutError:
+                errors[name] = f"timeout after {method_timeout:.1f}s"
+                continue
+            if result.success:
+                extracted = ContentExtractor(strategy=extract_strategy).extract(result.html, url)
+                if len(extracted.content) >= MIN_CONTENT_LENGTH:
+                    result.title = extracted.title
+                    result.content = extracted.content
+                    result.author = extracted.author
+                    result.date = extracted.date
+                    result.length = len(extracted.content)
+                    result.content_type = "article"
+                    result.method = f"pipeline5:{name}"
+                    result.pipeline_level = 5
+                    result.elapsed_ms = (time.monotonic() - t0) * 1000
+                    result.meta.update({"bypass_method": name, "wall_type": wall_type})
+                    return result
+                errors[name] = f"content too short ({len(extracted.content)} chars)"
+            else:
+                errors[name] = result.error or "no usable body"
 
         return PipelineResult(
             url=url,
             success=False,
-            error="Pipeline 5: all bypass methods failed",
             method="pipeline5:all_failed",
+            error="Pipeline 5: all bypass methods failed",
+            elapsed_ms=(time.monotonic() - t0) * 1000,
+            meta={"bypass_errors": errors, "wall_type": wall_type},
         )
 
-    async def _try_jina_reader(self, url: str) -> PipelineResult:
-        """Try r.jina.ai reader variants and reject reader warning shells."""
+    async def _try_jina_reader(self, url: str, *, timeout: float = 5.0) -> PipelineResult:
         import httpx
 
         variants = self._jina_reader_urls(url)
-        headers = {
-            "User-Agent": USER_AGENT,
-            "Accept": "text/plain, text/markdown, */*",
-        }
-        async with httpx.AsyncClient(follow_redirects=True, timeout=25, headers=headers) as client:
+        headers = self._desktop_headers(url, accept="text/plain, text/markdown, */*")
+        errors: list[str] = []
+        async with httpx.AsyncClient(
+            follow_redirects=True,
+            timeout=timeout,
+            headers=headers,
+            http2=self._http2_available(),
+        ) as client:
             for reader_url in variants:
                 try:
                     resp = await client.get(reader_url)
                     text = resp.text or ""
-                    if resp.status_code != 200 or len(text) < MIN_CONTENT_LENGTH:
+                    if resp.status_code != 200:
+                        errors.append(f"{reader_url}: HTTP {resp.status_code}")
+                        continue
+                    if len(text) < MIN_CONTENT_LENGTH:
+                        errors.append(f"{reader_url}: too short")
                         continue
                     if self._is_reader_failure(text):
+                        errors.append(f"{reader_url}: reader failure shell")
                         continue
-                    return PipelineResult(
-                        url=url,
-                        html=text,
-                        success=True,
-                        final_url=str(resp.url),
-                        method="pipeline5:jina_reader",
-                    )
-                except Exception:
-                    continue
-        return PipelineResult(url=url, success=False, method="pipeline5:jina_reader")
+                    return PipelineResult(url=url, final_url=str(resp.url), html=text, success=True, method="pipeline5:jina_reader")
+                except Exception as exc:
+                    errors.append(f"{reader_url}: {str(exc)[:120]}")
+        return PipelineResult(url=url, success=False, method="pipeline5:jina_reader", error="; ".join(errors[:6]))
 
     def _jina_reader_urls(self, url: str) -> list[str]:
         parsed = urlparse(url)
-        netloc_path = f"{parsed.netloc}{parsed.path}"
+        if parsed.scheme not in {"http", "https"} or not parsed.netloc:
+            return []
         query = f"?{parsed.query}" if parsed.query else ""
+        netloc_path = f"{parsed.netloc}{parsed.path}{query}"
         urls = [
             f"https://r.jina.ai/http://{url}",
-            f"https://r.jina.ai/http://{parsed.scheme}://{netloc_path}{query}",
+            f"https://r.jina.ai/http://{parsed.scheme}://{netloc_path}",
+            f"https://r.jina.ai/http://http://{netloc_path}",
+            f"https://r.jina.ai/http://https://{netloc_path}",
         ]
-        if parsed.scheme == "https":
+        if parsed.netloc.startswith("www."):
+            bare = parsed.netloc[4:]
             urls.extend([
-                f"https://r.jina.ai/http://http://{netloc_path}{query}",
-                f"https://r.jina.ai/http://https://{netloc_path}{query}",
+                f"https://r.jina.ai/http://https://{bare}{parsed.path}{query}",
+                f"https://r.jina.ai/http://http://{bare}{parsed.path}{query}",
             ])
-            if parsed.netloc.startswith("www."):
-                bare = parsed.netloc[4:]
-                urls.extend([
-                    f"https://r.jina.ai/http://https://{bare}{parsed.path}{query}",
-                    f"https://r.jina.ai/http://http://{bare}{parsed.path}{query}",
-                ])
+        else:
+            urls.extend([
+                f"https://r.jina.ai/http://https://www.{parsed.netloc}{parsed.path}{query}",
+                f"https://r.jina.ai/http://http://www.{parsed.netloc}{parsed.path}{query}",
+            ])
         return list(dict.fromkeys(urls))
 
+    async def _try_amp_print_reader(self, url: str, *, timeout: float = 5.0) -> PipelineResult:
+        candidates = self._variant_urls(url)
+        errors: list[str] = []
+        for candidate in candidates:
+            result = await self._try_http_variant(candidate, method="pipeline5:variant", timeout=timeout)
+            if result.success:
+                return result
+            errors.append(result.error or candidate)
+        return PipelineResult(url=url, success=False, method="pipeline5:variant", error="; ".join(errors[:5]))
+
+    def _variant_urls(self, url: str) -> list[str]:
+        parsed = urlparse(url)
+        sep = "&" if parsed.query else "?"
+        variants = [
+            f"{url.rstrip('/')}/amp",
+            f"{url}{sep}amp=1",
+            f"{url}{sep}output=amp",
+            f"{url}{sep}view=print",
+            f"{url}{sep}print=1",
+            url.replace("/articles/", "/amp/articles/"),
+            url.replace("/article/", "/print/"),
+        ]
+        return list(dict.fromkeys(variants))
+
+    async def _try_referer_variants(self, url: str, *, timeout: float = 5.0) -> PipelineResult:
+        referers = [
+            "https://www.google.com/",
+            "https://news.google.com/",
+            "https://www.facebook.com/",
+            "https://t.co/",
+            "https://www.reddit.com/",
+            "https://news.ycombinator.com/",
+        ]
+        errors: list[str] = []
+        for referer in referers:
+            result = await self._try_http_variant(url, method="pipeline5:referer", headers={"Referer": referer}, timeout=timeout)
+            if result.success:
+                result.meta["referer"] = referer
+                return result
+            errors.append(result.error or referer)
+        return PipelineResult(url=url, success=False, method="pipeline5:referer", error="; ".join(errors[:5]))
+
+    async def _try_archive_org(self, url: str, *, timeout: float = 5.0) -> PipelineResult:
+        urls = [
+            f"https://web.archive.org/web/20240000000000*/{url}",
+            f"https://webcache.googleusercontent.com/search?q={quote_plus(url)}",
+        ]
+        for candidate in urls:
+            result = await self._try_http_variant(candidate, method="pipeline5:archive_org", timeout=timeout)
+            if result.success:
+                return result
+        return PipelineResult(url=url, success=False, method="pipeline5:archive_org", error="No usable archive.org result")
+
+    async def _try_archive_today(self, url: str, *, timeout: float = 5.0) -> PipelineResult:
+        return await self._try_http_variant(f"https://archive.ph/newest/{url}", method="pipeline5:archive_today", timeout=timeout)
+
+    async def _try_google_cache(self, url: str, *, timeout: float = 5.0) -> PipelineResult:
+        return await self._try_http_variant(f"https://webcache.googleusercontent.com/search?q=cache:{url}", method="pipeline5:google_cache", timeout=timeout)
+
+    async def _try_http_variant(
+        self,
+        url: str,
+        *,
+        method: str,
+        headers: Optional[dict[str, str]] = None,
+        timeout: float = 5.0,
+    ) -> PipelineResult:
+        import httpx
+
+        request_headers = self._desktop_headers(url)
+        if headers:
+            request_headers.update(headers)
+        try:
+            async with httpx.AsyncClient(
+                follow_redirects=True,
+                timeout=timeout,
+                headers=request_headers,
+                http2=self._http2_available(),
+            ) as client:
+                resp = await client.get(url)
+                text = resp.text or ""
+                if resp.status_code >= 400:
+                    return PipelineResult(url=url, final_url=str(resp.url), html=text, success=False, method=method, error=f"HTTP {resp.status_code}")
+                if len(text) < MIN_CONTENT_LENGTH:
+                    return PipelineResult(url=url, final_url=str(resp.url), html=text, success=False, method=method, error=f"too short ({len(text)} chars)")
+                if self._is_pipeline_failure(text) or self._is_reader_failure(text):
+                    return PipelineResult(url=url, final_url=str(resp.url), html=text, success=False, method=method, error="challenge/failure shell")
+                return PipelineResult(url=url, final_url=str(resp.url), html=text, success=True, method=method)
+        except Exception as exc:
+            return PipelineResult(url=url, success=False, method=method, error=str(exc)[:220])
+
+    def _extract_result(
+        self,
+        *,
+        url: str,
+        final_url: str,
+        html: str,
+        method: str,
+        extract_strategy: str,
+        elapsed_ms: float,
+        meta: Optional[dict] = None,
+    ) -> PipelineResult:
+        extracted = ContentExtractor(strategy=extract_strategy).extract(html, url)
+        if len(extracted.content) < MIN_CONTENT_LENGTH:
+            return PipelineResult(
+                url=url,
+                final_url=final_url,
+                html=html,
+                title=extracted.title,
+                method=method,
+                success=False,
+                error=f"{method}: content too short ({len(extracted.content)} chars)",
+                elapsed_ms=elapsed_ms,
+                meta=meta or {},
+            )
+        return PipelineResult(
+            url=url,
+            final_url=final_url,
+            title=extracted.title,
+            content=extracted.content,
+            html=html,
+            author=extracted.author,
+            date=extracted.date,
+            length=len(extracted.content),
+            content_type="page",
+            method=method,
+            success=True,
+            elapsed_ms=elapsed_ms,
+            meta=meta or {},
+        )
+
+    async def _humanish_scroll(self, page) -> None:
+        for _ in range(3):
+            try:
+                await page.evaluate("window.scrollBy(0, Math.max(250, window.innerHeight * 0.8))")
+            except Exception:
+                break
+            await asyncio.sleep(0.25)
+
+    def _is_pipeline_failure(self, html: str) -> bool:
+        sample = (html or "")[:8000].lower()
+        return any(signal.lower() in sample for signal in PIPELINE_FAILURE_SIGNALS)
+
     def _is_reader_failure(self, text: str) -> bool:
-        sample = text[:2000].lower()
-        failure_markers = [
+        sample = (text or "")[:3000].lower()
+        markers = [
             "warning: target url returned error",
             "securitycompromiseerror",
             "anonymous access to domain",
             "title: just a moment",
             "checking your browser",
+            "please enable js and disable any ad blocker",
+            "please enable javascript and disable any ad blocker",
             "captcha",
             "access denied",
+            "ddos attack suspected",
         ]
-        if any(marker in sample for marker in failure_markers):
-            return True
-        if re.search(r'"code"\s*:\s*(401|403|451|429)', sample):
-            return True
-        return False
-
-    async def _try_archive_org(self, url: str) -> PipelineResult:
-        """尝试 Wayback Machine"""
-        import httpx
-        archive_url = f"https://web.archive.org/web/2024/{url}"
-        try:
-            async with httpx.AsyncClient(follow_redirects=True, timeout=15) as client:
-                resp = await client.get(archive_url)
-                if resp.status_code == 200 and len(resp.text) > 1000:
-                    return PipelineResult(url=url, html=resp.text, success=True, final_url=str(resp.url))
-        except Exception:
-            pass
-        return PipelineResult(url=url, success=False)
-
-    async def _try_google_cache(self, url: str) -> PipelineResult:
-        """尝试 Google Cache"""
-        import httpx
-        cache_url = f"https://webcache.googleusercontent.com/search?q=cache:{url}"
-        try:
-            async with httpx.AsyncClient(follow_redirects=True, timeout=15) as client:
-                resp = await client.get(cache_url)
-                if resp.status_code == 200 and len(resp.text) > 1000:
-                    return PipelineResult(url=url, html=resp.text, success=True, final_url=str(resp.url))
-        except Exception:
-            pass
-        return PipelineResult(url=url, success=False)
-
-    async def _try_archive_today(self, url: str) -> PipelineResult:
-        """尝试 archive.today"""
-        import httpx
-        archive_url = f"https://archive.ph/newest/{url}"
-        try:
-            async with httpx.AsyncClient(follow_redirects=True, timeout=15) as client:
-                resp = await client.get(archive_url)
-                if resp.status_code == 200 and len(resp.text) > 1000:
-                    return PipelineResult(url=url, html=resp.text, success=True, final_url=str(resp.url))
-        except Exception:
-            pass
-        return PipelineResult(url=url, success=False)
-
-    async def _try_reader_mode(self, url: str) -> PipelineResult:
-        """尝试 Reader Mode URL（某些浏览器支持）"""
-        import httpx
-        # 尝试添加 ?reader=1 或 /amp 后缀
-        for suffix in ["/amp", "?reader=1", "?output=amp"]:
-            try:
-                reader_url = url.rstrip("/") + suffix
-                async with httpx.AsyncClient(follow_redirects=True, timeout=15) as client:
-                    resp = await client.get(reader_url)
-                    if resp.status_code == 200 and len(resp.text) > 1000:
-                        return PipelineResult(url=url, html=resp.text, success=True, final_url=str(resp.url))
-            except Exception:
-                continue
-        return PipelineResult(url=url, success=False)
-
-    async def _try_referer_social(self, url: str) -> PipelineResult:
-        """尝试社交媒体 Referer 伪装"""
-        import httpx
-        referers = [
-            "https://www.facebook.com/",
-            "https://t.co/",
-            "https://www.google.com/",
-        ]
-        for referer in referers:
-            try:
-                async with httpx.AsyncClient(follow_redirects=True, timeout=15) as client:
-                    resp = await client.get(
-                        url,
-                        headers={"Referer": referer},
-                    )
-                    if resp.status_code == 200 and len(resp.text) > 1000:
-                        return PipelineResult(url=url, html=resp.text, success=True, final_url=str(resp.url))
-            except Exception:
-                continue
-        return PipelineResult(url=url, success=False)
-
-    async def _try_print_version(self, url: str) -> PipelineResult:
-        """尝试打印版 URL"""
-        import httpx
-        # 常见的打印版 URL 模式
-        patterns = [
-            url.rstrip("/") + "?print=true",
-            url.rstrip("/") + "?view=print",
-            url.replace("/articles/", "/print/"),
-        ]
-        for print_url in patterns:
-            try:
-                async with httpx.AsyncClient(follow_redirects=True, timeout=15) as client:
-                    resp = await client.get(print_url)
-                    if resp.status_code == 200 and len(resp.text) > 1000:
-                        return PipelineResult(url=url, html=resp.text, success=True, final_url=str(resp.url))
-            except Exception:
-                continue
-        return PipelineResult(url=url, success=False)
-
-    # ============================================================
-    # 辅助方法
-    # ============================================================
-
-    async def _render_page(
-        self,
-        page,
-        url: str,
-        *,
-        selector: str,
-        wait_ms: int,
-        scroll_delay: float,
-    ) -> tuple[str, str]:
-        """渲染页面，支持懒加载滚动检测"""
-        await page.goto(url, wait_until="domcontentloaded", timeout=PAGE_GOTO_TIMEOUT)
-        try:
-            await page.wait_for_selector(selector, timeout=wait_ms)
-        except Exception:
-            pass
-
-        # 懒加载优化：滚动直到高度不再变化
-        prev_height = 0
-        max_scrolls = 10
-        for _ in range(max_scrolls):
-            current_height = await page.evaluate("document.body.scrollHeight")
-            if current_height == prev_height:
-                break  # 高度不再变化，停止滚动
-            prev_height = current_height
-            await page.evaluate("window.scrollBy(0, window.innerHeight)")
-            await asyncio.sleep(scroll_delay)
-
-        return await page.content(), await page.title()
-
-    def _is_pipeline_failure(self, html: str) -> bool:
-        """判断 HTML 是否触发管线失败条件"""
-        html_lower = html.lower()
-        for signal in PIPELINE_FAILURE_SIGNALS:
-            if signal in html_lower:
-                return True
-        return False
+        return any(marker in sample for marker in markers) or bool(re.search(r'"code"\s*:\s*(401|403|451|429)', sample))
 
     def _detect_paywall(self, result: PipelineResult) -> bool:
-        """检测页面是否存在付费墙"""
-        if not result.html:
-            return False
-        html_lower = result.html.lower()
-        for signal in PAYWALL_DETECT_SIGNALS:
-            if signal in html_lower:
-                return True
-        return False
+        sample = (result.html or "")[:12000].lower()
+        return any(signal.lower() in sample for signal in PAYWALL_DETECT_SIGNALS)
 
-    # ============================================================
-    # 失败站点管理
-    # ============================================================
+    def _desktop_headers(self, url: str, *, accept: Optional[str] = None) -> dict[str, str]:
+        parsed = urlparse(url)
+        origin = f"{parsed.scheme}://{parsed.netloc}/" if parsed.scheme and parsed.netloc else "https://www.google.com/"
+        return {
+            "Accept": accept or "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
+            "Accept-Language": "en-US,en;q=0.9",
+            "Cache-Control": "no-cache",
+            "Pragma": "no-cache",
+            "Referer": origin,
+            "Upgrade-Insecure-Requests": "1",
+            "User-Agent": USER_AGENT,
+        }
+
+    @staticmethod
+    def _decode_bytes(data: bytes, content_encoding: str = "") -> str:
+        if content_encoding.lower() == "gzip":
+            data = gzip.decompress(data)
+        for encoding in ("utf-8", "gb18030", "big5", "latin-1"):
+            try:
+                return data.decode(encoding)
+            except UnicodeDecodeError:
+                continue
+        return data.decode("utf-8", errors="replace")
+
+    @staticmethod
+    def _http2_available() -> bool:
+        return importlib.util.find_spec("h2") is not None
+
+    def _mark_stats(self, level: int, success: bool, *, degraded: bool) -> None:
+        bucket = self._pipeline_stats.get(level)
+        if isinstance(bucket, dict):
+            bucket["success" if success else "failure"] += 1
+        if degraded:
+            self._pipeline_stats["degradation_count"] = int(self._pipeline_stats["degradation_count"]) + 1
+
+    @staticmethod
+    def _result_meta(result: PipelineResult) -> dict:
+        return {
+            "method": result.method,
+            "success": result.success,
+            "error": result.error,
+            "final_url": result.final_url,
+            "length": result.length,
+            "pipeline_level": result.pipeline_level,
+            "meta": result.meta,
+        }
 
     def get_failed_sites(self) -> dict[str, FailedSite]:
-        """获取所有失败站点记录"""
         return dict(self._failed_sites)
 
-    def clear_failed_site(self, domain: str):
-        """手动清除某站点的失败标记（人工评估后重试）"""
-        if domain in self._failed_sites:
-            del self._failed_sites[domain]
-            logger.info("Cleared failed site mark for %s", domain)
+    def clear_failed_site(self, domain: str) -> None:
+        self._failed_sites.pop(domain, None)
 
-    def clear_all_failed_sites(self):
-        """清除所有失败标记"""
-        count = len(self._failed_sites)
+    def clear_all_failed_sites(self) -> None:
         self._failed_sites.clear()
-        logger.info("Cleared all %d failed site marks", count)
 
-    def _cleanup_expired_failed(self):
-        """清理过期的失败站点记录"""
-        expired_domains = [
-            domain for domain, failed in self._failed_sites.items()
-            if failed.is_expired
-        ]
-        for domain in expired_domains:
+    def _cleanup_expired_failed(self) -> None:
+        for domain in [domain for domain, failed in self._failed_sites.items() if failed.is_expired]:
             del self._failed_sites[domain]
-            logger.info("Expired failed site mark for %s (auto-retry enabled)", domain)
 
     @property
     def stats(self) -> dict:

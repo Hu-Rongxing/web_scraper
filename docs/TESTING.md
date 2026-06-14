@@ -29,9 +29,13 @@ python test/test_4sites.py
 python test/test_proxy_sites.py
 python test/test_comprehensive_links.py
 python test/test_wsj_optimized.py
+python examples/probe_v7_failed_sites.py
 ```
 
 Generated reports and captured pages should stay under `test/output/`.
+
+The v7 failure-sample probe writes reports to `docs/probe-results/`. It is a
+standalone `web_scraper` tool and does not import `monitor_v7`.
 
 ## Codegraph
 

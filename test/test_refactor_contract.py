@@ -96,13 +96,42 @@ def test_pipeline_manager_jina_reader_variants():
     assert urls[0].startswith("https://r.jina.ai/http://https://www.ft.com/content/")
     assert any("http://http://" in url for url in urls)
     assert any("http://https://" in url for url in urls)
+    assert len(urls) == len(set(urls))
+
+
+def test_pipeline_manager_jina_reader_variants_add_www_for_bare_domain():
+    manager = PipelineManager()
+    urls = manager._jina_reader_urls("https://economist.com/business/story")
+
+    assert any("https://www.economist.com/business/story" in url for url in urls)
+    assert any("http://www.economist.com/business/story" in url for url in urls)
+    assert len(urls) == len(set(urls))
 
 
 def test_pipeline_manager_reader_failure_detection():
     manager = PipelineManager()
     assert manager._is_reader_failure('{"code":451,"message":"Anonymous access to domain www.reuters.com blocked"}')
     assert manager._is_reader_failure("Warning: Target URL returned error 401")
+    assert manager._is_reader_failure("Please enable JS and disable any ad blocker")
     assert not manager._is_reader_failure("Title: Example\nMarkdown Content:\n\nBody text only.")
+
+
+def test_pipeline_manager_variant_urls():
+    manager = PipelineManager()
+    urls = manager._variant_urls("https://example.com/articles/story?x=1")
+
+    assert "https://example.com/articles/story?x=1&amp=1" in urls
+    assert "https://example.com/articles/story?x=1&view=print" in urls
+    assert "https://example.com/amp/articles/story?x=1" in urls
+
+
+def test_pipeline_manager_desktop_headers():
+    manager = PipelineManager()
+    headers = manager._desktop_headers("https://example.com/path")
+
+    assert headers["User-Agent"]
+    assert headers["Referer"] == "https://example.com/"
+    assert "text/html" in headers["Accept"]
 
 
 def test_link_extractor_uses_scrapling_dom():
