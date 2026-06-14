@@ -16,7 +16,7 @@ import sys
 import asyncio
 import time
 import os
-from pathlib import Path
+from path_setup import add_src_to_path
 
 # 设置编码
 if sys.platform == 'win32':
@@ -24,7 +24,7 @@ if sys.platform == 'win32':
     sys.stdout.reconfigure(encoding='utf-8')
     sys.stderr.reconfigure(encoding='utf-8')
 
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+add_src_to_path()
 
 # 在导入前设置优化配置
 os.environ['ARTICLE_READER_WAIT_RENDER'] = '3000'  # 3秒等待

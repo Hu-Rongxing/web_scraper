@@ -5,12 +5,12 @@ import asyncio
 import sys
 import time
 import json
-from pathlib import Path
+from path_setup import add_src_to_path
 from datetime import datetime
 from output_paths import output_path
 
 sys.stdout.reconfigure(encoding='utf-8', errors='replace')
-sys.path.insert(0, str(Path(__file__).parent.parent))
+add_src_to_path()
 
 from article_reader import SmartFetcher
 

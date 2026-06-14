@@ -1,13 +1,12 @@
 # article_reader
 
-`article_reader` is a focused Python package for news list discovery and article detail extraction.
+`article_reader` is a Python package for news-list discovery and article-detail extraction.
 
-The project is intentionally scoped to two extraction engines:
+The extraction surface is intentionally small:
 
-- Article detail text: `trafilatura`, with Scrapling DOM text fallback when trafilatura is unavailable, errors, or returns too little text
-- News/list links: Scrapling DOM selectors through `LinkExtractor`
-
-Fetching, rendering, proxy assignment, and pipeline degradation remain in the existing pipeline layer. The extraction layer stays small so it is easier to test and replace internally without changing callers.
+- Article details use `trafilatura` first, with Scrapling DOM text fallback.
+- News/list links use Scrapling DOM selectors through `LinkExtractor`.
+- Fetching, rendering, proxy assignment, and pipeline degradation stay behind `SmartFetcher`.
 
 ## Public API
 
@@ -15,7 +14,7 @@ Fetching, rendering, proxy assignment, and pipeline degradation remain in the ex
 from article_reader import ContentExtractor, LinkExtractor, SmartFetcher
 ```
 
-### Extract Article Details
+## Article Details
 
 ```python
 from article_reader import ContentExtractor
@@ -27,7 +26,7 @@ print(result.content)
 print(result.method)
 ```
 
-`ContentExtractor` returns `ExtractedContent`:
+`ContentExtractor` returns `ExtractedContent` with:
 
 - `title`
 - `content`
@@ -37,9 +36,9 @@ print(result.method)
 - `raw_html`
 - `method`
 
-The primary production article extraction strategy is `trafilatura`. Scrapling is the built-in fallback. The `extract_strategy` argument is retained for compatibility; unsupported values are normalized to `trafilatura`.
+The `extract_strategy` argument is kept for compatibility. Unsupported values are normalized to `trafilatura`.
 
-### Extract List Links
+## List Links
 
 ```python
 from article_reader import LinkExtractor
@@ -53,16 +52,17 @@ links = LinkExtractor().extract(
 )
 ```
 
-`LinkExtractor` returns `ExtractedLink` objects:
+`LinkExtractor` returns `ExtractedLink` objects with:
 
 - `url`
 - `title`
 
-### Fetch Through Pipelines
+## Pipeline Fetching
 
 ```python
 import asyncio
 from article_reader import SmartFetcher
+
 
 async def main():
     async with SmartFetcher() as fetcher:
@@ -70,40 +70,43 @@ async def main():
         links = await fetcher.fetch_links("https://example.com/news")
         print(article.title, len(article.content), len(links))
 
+
 asyncio.run(main())
 ```
 
 `SmartFetcher.fetch()` returns extracted article content.
-`SmartFetcher.fetch_links()` fetches a list page and extracts links from the rendered HTML.
+`SmartFetcher.fetch_links()` fetches a list page and extracts links from the fetched HTML.
 
 ## Repository Layout
 
 ```text
 .
-|-- content_extractor.py      # trafilatura article extraction with Scrapling fallback
-|-- link_extractor.py         # Scrapling DOM link extraction
-|-- fetchers/
-|   `-- smart.py              # public async fetch facade
-|-- pipelines/                # fetch/render/degradation managers
-|-- proxies/                  # proxy pool implementations
-|-- examples/                 # runnable examples
-|-- test/                     # tests and integration diagnostics
-|   |-- output/               # generated test reports, ignored
-|   `-- output_paths.py       # shared output path helper
-|-- docs/                     # testing and verification notes
-|-- models.py                 # result models
-`-- config.py                 # runtime configuration
+|-- src/article_reader/        # package source
+|   |-- content_extractor.py   # trafilatura + Scrapling fallback
+|   |-- link_extractor.py      # Scrapling DOM link extraction
+|   |-- fetchers/              # public async fetch facade
+|   |-- pipelines/             # fetch/render/degradation managers
+|   |-- proxies/               # proxy pool implementations
+|   |-- models.py              # result models
+|   `-- config.py              # runtime configuration
+|-- test/                      # contract tests and live diagnostics
+|-- examples/                  # public-API integration examples
+|-- docs/                      # testing and verification notes
+|-- tools/                     # reserved for repo maintenance helpers
+|-- pyproject.toml             # pytest/ruff configuration
+`-- .codegraph/                # codegraph index
 ```
 
-Generated outputs, browser profiles, screenshots, HTML captures, and test reports are ignored by default.
+Generated outputs, caches, browser profiles, screenshots, HTML captures, and test reports are ignored.
 
 ## Quick Verification
 
-Run from this repository root:
+Run from the repository root:
 
 ```bash
+python -m compileall src test examples
 python -m pytest test/test_refactor_contract.py -q
-python -m py_compile content_extractor.py link_extractor.py fetchers/smart.py __init__.py
+python -m pytest test/test_bypass.py -q
 ```
 
 Optional import check:
@@ -112,16 +115,20 @@ Optional import check:
 python -c "from article_reader import SmartFetcher, ContentExtractor, LinkExtractor; print('ok')"
 ```
 
-## Integration Tests
-
-Most files under `test/` are live-site diagnostics. They can require network access, a local browser, proxy configuration, or long timeouts.
-
-Examples:
+## Examples
 
 ```bash
-python test/test_4sites.py
-python test/test_proxy_sites.py
-python test/test_comprehensive_links.py
+python examples/tencent_latest.py
+python examples/economist_latest.py
+python examples/wsj_latest.py
 ```
 
-Integration test output is written under `test/output/` and is not committed.
+These scripts use the public API only. They are live-site checks, so results depend on network access and the target site response.
+
+## Codegraph
+
+Rebuild the project index after structural changes:
+
+```bash
+codegraph build . --no-incremental
+```

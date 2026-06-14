@@ -12,9 +12,9 @@ SmartFetcher 集成测试
 import sys
 import asyncio
 import time
-from pathlib import Path
+from path_setup import add_src_to_path
 
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+add_src_to_path()
 
 from article_reader import SmartFetcher
 

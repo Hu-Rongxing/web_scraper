@@ -1,10 +1,9 @@
 ﻿# -*- coding: utf-8 -*-
 
 import pytest
-import sys
-from pathlib import Path
+from path_setup import add_src_to_path
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+add_src_to_path()
 
 import article_reader.content_extractor as content_extractor
 from article_reader import (

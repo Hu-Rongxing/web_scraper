@@ -8,15 +8,14 @@ import asyncio
 import json
 import time
 from datetime import datetime
-from pathlib import Path
+from path_setup import add_src_to_path
 from output_paths import output_path
 
 # Add project root to path
-import sys
-sys.path.insert(0, str(Path(__file__).parent.parent))
+add_src_to_path()
 
 # Direct imports from project modules
-from fetchers.smart import SmartFetcher
+from article_reader import SmartFetcher
 
 
 # Test URLs grouped by source

@@ -13,12 +13,12 @@ test_real_sites.py — 真实网站五级管线测试
 import asyncio
 import sys
 import time
-from pathlib import Path
+from path_setup import add_src_to_path
 
 # 修复 Windows 控制台编码
 sys.stdout.reconfigure(encoding='utf-8', errors='replace')
 
-sys.path.insert(0, str(Path(__file__).parent.parent))
+add_src_to_path()
 
 from article_reader import SmartFetcher, Pipeline5Manager
 

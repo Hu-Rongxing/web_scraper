@@ -12,10 +12,10 @@ article_reader 测试脚本
 
 import sys
 import asyncio
-from pathlib import Path
+from path_setup import add_src_to_path
 
 # 确保能找到 article_reader 包
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+add_src_to_path()
 
 from article_reader import ArticleReader, PluginManager
 

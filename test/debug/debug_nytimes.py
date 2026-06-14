@@ -5,14 +5,14 @@
 import sys
 import asyncio
 import os
-from pathlib import Path
+from path_setup import add_src_to_path
 
 if sys.platform == 'win32':
     os.system('chcp 65001 > nul')
     sys.stdout.reconfigure(encoding='utf-8')
     sys.stderr.reconfigure(encoding='utf-8')
 
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+add_src_to_path()
 from playwright.async_api import async_playwright
 
 async def debug_nytimes():

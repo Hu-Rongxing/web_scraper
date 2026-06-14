@@ -13,14 +13,14 @@ test_pipelines.py - 五级管线完整测试脚本
 
 import asyncio
 import sys
-from pathlib import Path
+from path_setup import add_src_to_path
 
 import pytest
 
 pytestmark = pytest.mark.asyncio
 
 # 添加项目根目录到路径
-sys.path.insert(0, str(Path(__file__).parent.parent))
+add_src_to_path()
 
 from article_reader import (
     PipelineManager,

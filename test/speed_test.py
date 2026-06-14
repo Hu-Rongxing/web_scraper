@@ -9,8 +9,8 @@ Phase 2: 用同一个 SmartFetcher 抓正文
 import sys
 import asyncio
 import time
-from pathlib import Path
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+from path_setup import add_src_to_path
+add_src_to_path()
 
 if sys.platform == "win32":
     import io

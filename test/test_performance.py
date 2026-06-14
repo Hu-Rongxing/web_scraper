@@ -12,7 +12,7 @@
 import sys
 import asyncio
 import time
-from pathlib import Path
+from path_setup import add_src_to_path
 import statistics
 import os
 
@@ -23,7 +23,7 @@ if sys.platform == 'win32':
     sys.stderr.reconfigure(encoding='utf-8')
 
 # 确保能找到 article_reader 包
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+add_src_to_path()
 
 from article_reader import ArticleReader
 

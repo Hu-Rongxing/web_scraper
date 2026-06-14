@@ -4,12 +4,13 @@
 import re
 import sys
 from pathlib import Path
+from path_setup import add_src_to_path
 from urllib.parse import urlparse
 
 sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
-sys.path.insert(0, str(PROJECT_ROOT.parent))
+add_src_to_path()
 
 from article_reader import LinkExtractor
 

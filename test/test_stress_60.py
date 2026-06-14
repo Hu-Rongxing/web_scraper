@@ -25,7 +25,7 @@ import os
 import asyncio
 import time
 import statistics
-from pathlib import Path
+from path_setup import add_src_to_path
 
 # Windows 控制台 UTF-8
 if sys.platform == "win32":
@@ -33,7 +33,7 @@ if sys.platform == "win32":
     sys.stdout.reconfigure(encoding="utf-8")
     sys.stderr.reconfigure(encoding="utf-8")
 
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+add_src_to_path()
 
 from article_reader import ArticleReader  # noqa: E402
 

@@ -4,12 +4,13 @@
 import asyncio
 import os
 import sys
+from path_setup import add_src_to_path
 
 sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 sys.stderr.reconfigure(encoding="utf-8", errors="replace")
 
 PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-sys.path.insert(0, PROJECT_ROOT)
+add_src_to_path()
 
 from article_reader import SmartFetcher
 
