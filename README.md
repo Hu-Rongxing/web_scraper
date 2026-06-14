@@ -77,27 +77,47 @@ asyncio.run(main())
 `SmartFetcher.fetch()` returns extracted article content.
 `SmartFetcher.fetch_links()` fetches a list page and extracts links from the fetched HTML.
 
+### Pipeline Architecture
+
+```
+URL → P1(HTTP轻量) → P2(基础浏览器) → P3(高防护) → P4(付费墙) → P5(反封锁) → 标记失败
+```
+
+See [AGENT_GUIDELINES.md](AGENT_GUIDELINES.md) for mandatory rules all agents must follow.
+
+## Key Dependencies
+
+| Package | Role | Docs |
+|---------|------|------|
+| **curl_cffi** | P1 HTTP with browser TLS fingerprint | https://github.com/lexiforest/curl_cffi |
+| **Scrapling** | P1 Fetcher + DOM parsing | https://scrapling.readthedocs.io/en/latest/ |
+| **CloakBrowser** | P2/P3/P4 anti-detection browser | https://cloakbrowser.dev/ |
+| **Bypass Paywalls Clean** | P4 paywall bypass extension | https://gitflic.ru/project/magnolia1234/bypass-paywalls-chrome-clean |
+| **trafilatura** | Content extraction | https://trafilatura.readthedocs.io/ |
+| **nodriver** | Pipeline 6 fallback (real Chrome) | https://ultrafunkamsterdam.github.io/nodriver/ |
+
 ## Repository Layout
 
 ```text
 .
-|-- src/article_reader/        # package source
-|   |-- content_extractor.py   # trafilatura + Scrapling fallback
-|   |-- link_extractor.py      # Scrapling DOM link extraction
-|   |-- fetchers/              # public async fetch facade
-|   |-- pipelines/             # fetch/render/degradation managers
-|   |-- proxies/               # proxy pool implementations
-|   |-- models.py              # result models
-|   `-- config.py              # runtime configuration
+|-- __init__.py                # public API exports
+|-- content_extractor.py       # trafilatura + Scrapling fallback
+|-- link_extractor.py          # Scrapling DOM link extraction
+|-- fetchers/                  # public async fetch facade
+|-- pipelines/                 # fetch/render/degradation managers
+|   |-- pipeline.py            # 5-level pipeline scheduler
+|   |-- anti_block.py          # bypass strategies (archive, cache, etc.)
+|   |-- rss_validator.py       # RSS sync validation
+|   `-- pipeline5.py           # nodriver fallback
+|-- proxies/                   # proxy pool implementations
+|-- browser_pool.py            # Pool A/B/C CloakBrowser pools
+|-- models.py                  # result models
+|-- config.py                  # runtime configuration
 |-- test/                      # contract tests and live diagnostics
 |-- examples/                  # public-API integration examples
 |-- docs/                      # testing and verification notes
-|-- tools/                     # reserved for repo maintenance helpers
-|-- pyproject.toml             # pytest/ruff configuration
-`-- .codegraph/                # codegraph index
+`-- AGENT_GUIDELINES.md        # mandatory rules for agents
 ```
-
-Generated outputs, caches, browser profiles, screenshots, HTML captures, and test reports are ignored.
 
 ## Quick Verification
 
@@ -124,11 +144,3 @@ python examples/wsj_latest.py
 ```
 
 These scripts use the public API only. They are live-site checks, so results depend on network access and the target site response.
-
-## Codegraph
-
-Rebuild the project index after structural changes:
-
-```bash
-codegraph build . --no-incremental
-```
