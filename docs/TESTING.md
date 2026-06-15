@@ -12,6 +12,11 @@ python -m pytest test/test_bypass.py -q
 
 This gate checks package imports, extraction contracts, link parsing, proxy pool behavior, pipeline constants, wall detection, and RSS validation helpers.
 
+The extraction contract now includes v7-learned guards for JSON-LD
+`articleBody`, script-state article bodies, reader/paywall shell rejection, and
+list URL/title filters. These checks remain local to `web_scraper` and do not
+load `monitor_v7`.
+
 ## Import Check
 
 ```bash

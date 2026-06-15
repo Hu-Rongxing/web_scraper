@@ -68,6 +68,9 @@ class SmartFetcher:
         include_domains: list[str] | None = None,
         min_title_length: int = 1,
         max_title_length: int = 240,
+        require_url_pattern: str | None = None,
+        reject_url_contains: list[str] | None = None,
+        reject_title_patterns: list[str] | None = None,
         **opts,
     ) -> list[ExtractedLink]:
         """Fetch a list page and extract links with Scrapling DOM parsing."""
@@ -90,6 +93,9 @@ class SmartFetcher:
             include_domains=include_domains,
             min_title_length=min_title_length,
             max_title_length=max_title_length,
+            require_url_pattern=require_url_pattern,
+            reject_url_contains=reject_url_contains,
+            reject_title_patterns=reject_title_patterns,
         )
 
     async def fetch_many(
@@ -130,6 +136,6 @@ class SmartFetcher:
     def stats(self) -> dict:
         return {
             "started": self._started,
-            "version": "3.1",
+            "version": "3.2",
             "pipelines": self._pipeline.stats if self._pipeline else {},
         }

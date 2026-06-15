@@ -9,8 +9,10 @@ engines and avoids readability-lxml as a separate extraction path.
 from __future__ import annotations
 
 import re
+import json
+from html import unescape
 from dataclasses import dataclass
-from typing import Optional
+from typing import Any, Optional
 
 from .config import DEFAULT_EXTRACT_STRATEGY, MIN_CONTENT_LENGTH, logger
 
@@ -49,6 +51,48 @@ class ContentExtractor:
         "main",
         "body",
     )
+    STRUCTURED_BODY_KEYS = {
+        "articlebody",
+        "body",
+        "bodytext",
+        "contentbody",
+        "fulltext",
+        "fullcontent",
+        "text",
+        "html",
+        "nodetree",
+        "paragraphs",
+        "blocks",
+    }
+    STRUCTURED_TITLE_KEYS = ("headline", "title", "name")
+    STRUCTURED_DATE_KEYS = (
+        "datePublished",
+        "dateModified",
+        "publishedAt",
+        "published_at",
+        "publishTime",
+        "createdAt",
+        "created_at",
+    )
+    REJECTED_TEXT_MARKERS = (
+        "warning: target url returned error",
+        "securitycompromiseerror",
+        "anonymous access to domain",
+        "title: just a moment",
+        "checking your browser",
+        "please enable js and disable any ad blocker",
+        "please enable javascript and disable any ad blocker",
+        "captcha",
+        "access denied",
+        "continue with a free trial",
+        "already have an account?",
+        "register an account to continue reading",
+        "subscribe to continue",
+        "log in to continue",
+        "login to continue",
+        "member only",
+        "premium content",
+    )
 
     def __init__(self, strategy: Optional[str] = None):
         self._strategy = strategy or DEFAULT_EXTRACT_STRATEGY
@@ -63,6 +107,10 @@ class ContentExtractor:
         plain = self._extract_reader_plain_text(html)
         if plain:
             return plain
+        structured = self._extract_structured_data(html)
+        if structured and len(structured.content) >= MIN_CONTENT_LENGTH:
+            structured.raw_html = html
+            return structured
         return self._extract_trafilatura(html, url)
 
     def _extract_trafilatura(self, html: str, url: str) -> ExtractedContent:
@@ -185,6 +233,13 @@ class ContentExtractor:
         )
         if has_html and not looks_reader:
             return None
+        if self._contains_rejected_text(text):
+            title = self._extract_reader_title(text)
+            return ExtractedContent(
+                title=self._clean_title(title),
+                raw_html=text,
+                method="reader_plain_text_rejected",
+            )
 
         lines = [line.strip() for line in text.replace("\r\n", "\n").split("\n")]
         title = ""
@@ -220,6 +275,229 @@ class ContentExtractor:
             raw_html=text,
             method="reader_plain_text",
         )
+
+    def _extract_structured_data(self, html: str) -> Optional[ExtractedContent]:
+        """Extract complete article bodies from JSON-LD or front-end state."""
+        if not html:
+            return None
+
+        for script_id in ("__NEXT_DATA__", "__NUXT_DATA__", "__APOLLO_STATE__"):
+            for raw in self._script_contents(html, id_value=script_id):
+                data = self._loads_jsonish(raw)
+                result = self._extract_from_json(data, method=f"script_state:{script_id.lower()}")
+                if result and len(result.content) >= MIN_CONTENT_LENGTH:
+                    return result
+
+        best: ExtractedContent | None = None
+        for raw in self._script_contents(html, type_pattern=r"(?:application/json|application/ld\+json)"):
+            data = self._loads_jsonish(raw)
+            method = "json_ld" if "ld+json" in raw[:80].lower() or self._looks_like_json_ld(data) else "script_state"
+            result = self._extract_from_json(data, method=method)
+            if not result or len(result.content) < MIN_CONTENT_LENGTH:
+                continue
+            if method == "json_ld" and not self._json_data_has_article_body(data):
+                continue
+            if best is None or len(result.content) > len(best.content):
+                best = result
+        return best
+
+    def _extract_from_json(self, data: Any, *, method: str) -> Optional[ExtractedContent]:
+        if data is None:
+            return None
+
+        body, body_score = self._best_json_body(data)
+        if not body:
+            return None
+        body = self._clean_structured_text(body)
+        if self._contains_rejected_text(body):
+            return None
+
+        title = self._first_json_string(data, self.STRUCTURED_TITLE_KEYS)
+        date = self._first_json_string(data, self.STRUCTURED_DATE_KEYS)
+        summary = self._first_json_string(data, ("summary", "description")) if body_score >= 0 else ""
+        return ExtractedContent(
+            title=self._clean_title(title),
+            content=body,
+            date=date or None,
+            method=method,
+            summary=summary or None,
+        )
+
+    def _best_json_body(self, data: Any) -> tuple[str, int]:
+        best_text = ""
+        best_score = -1
+
+        def visit(value: Any, path: tuple[str, ...] = ()) -> None:
+            nonlocal best_text, best_score
+            if isinstance(value, dict):
+                for key, child in value.items():
+                    key_text = str(key)
+                    key_norm = key_text.lower()
+                    if key_norm in self.STRUCTURED_BODY_KEYS and not self._is_summary_path(path + (key_text,)):
+                        text = self._json_body_text(child)
+                        score = len(text)
+                        if key_norm in {"articlebody", "contentbody", "fulltext", "fullcontent"}:
+                            score += 2000
+                        if key_norm in {"nodetree", "paragraphs", "blocks"}:
+                            score += 800
+                        if len(text) >= MIN_CONTENT_LENGTH and score > best_score:
+                            best_text = text
+                            best_score = score
+                    visit(child, path + (key_text,))
+            elif isinstance(value, list):
+                for child in value:
+                    visit(child, path)
+
+        visit(data)
+        return best_text, best_score
+
+    def _json_body_text(self, value: Any) -> str:
+        if value is None:
+            return ""
+        if isinstance(value, str):
+            return self._clean_structured_text(value)
+        if isinstance(value, (int, float, bool)):
+            return ""
+        if isinstance(value, list):
+            parts = [self._json_body_text(item) for item in value]
+            return self._join_body_parts(parts)
+        if isinstance(value, dict):
+            parts: list[str] = []
+            for key, child in value.items():
+                key_norm = str(key).lower()
+                if key_norm in {"text", "value", "content", "html", "children", "paragraphs", "blocks", "nodes"}:
+                    parts.append(self._json_body_text(child))
+            if not parts:
+                for child in value.values():
+                    text = self._json_body_text(child)
+                    if text:
+                        parts.append(text)
+            return self._join_body_parts(parts)
+        return ""
+
+    @staticmethod
+    def _join_body_parts(parts: list[str]) -> str:
+        cleaned = [part.strip() for part in parts if part and part.strip()]
+        return "\n\n".join(dict.fromkeys(cleaned))
+
+    def _first_json_string(self, data: Any, keys: tuple[str, ...]) -> str:
+        wanted = {key.lower() for key in keys}
+
+        def visit(value: Any) -> str:
+            if isinstance(value, dict):
+                for key, child in value.items():
+                    if str(key).lower() in wanted and isinstance(child, (str, int, float)):
+                        text = str(child).strip()
+                        if text and len(text) < 300:
+                            return text
+                for child in value.values():
+                    found = visit(child)
+                    if found:
+                        return found
+            elif isinstance(value, list):
+                for child in value:
+                    found = visit(child)
+                    if found:
+                        return found
+            return ""
+
+        return visit(data)
+
+    def _script_contents(
+        self,
+        html: str,
+        *,
+        id_value: str | None = None,
+        type_pattern: str | None = None,
+    ) -> list[str]:
+        scripts: list[str] = []
+        for match in re.finditer(r"<script\b([^>]*)>(.*?)</script>", html, re.I | re.S):
+            attrs = match.group(1) or ""
+            body = unescape(match.group(2) or "").strip()
+            if not body:
+                continue
+            if id_value and not re.search(rf"\bid\s*=\s*['\"]{re.escape(id_value)}['\"]", attrs, re.I):
+                continue
+            if type_pattern and not re.search(rf"\btype\s*=\s*['\"][^'\"]*{type_pattern}[^'\"]*['\"]", attrs, re.I):
+                continue
+            scripts.append(body)
+        return scripts
+
+    def _loads_jsonish(self, raw: str) -> Any:
+        if not raw:
+            return None
+        cleaned = raw.strip()
+        cleaned = re.sub(r"^\s*window\.[A-Za-z0-9_$]+\s*=\s*", "", cleaned)
+        cleaned = cleaned.rstrip(";")
+        try:
+            return json.loads(cleaned)
+        except Exception:
+            pass
+        cleaned = re.sub(
+            r'("(?:datePublished|dateModified|publishedAt|createdAt)"\s*:\s*)(\d{4}-\d{2}-\d{2}T[0-9:.+-Z]+)',
+            r'\1"\2"',
+            cleaned,
+        )
+        try:
+            return json.loads(cleaned)
+        except Exception:
+            return None
+
+    def _looks_like_json_ld(self, data: Any) -> bool:
+        found = False
+
+        def visit(value: Any) -> None:
+            nonlocal found
+            if found:
+                return
+            if isinstance(value, dict):
+                type_value = value.get("@type")
+                if isinstance(type_value, str) and "article" in type_value.lower():
+                    found = True
+                    return
+                if "@context" in value:
+                    found = True
+                    return
+                for child in value.values():
+                    visit(child)
+            elif isinstance(value, list):
+                for child in value:
+                    visit(child)
+
+        visit(data)
+        return found
+
+    def _json_data_has_article_body(self, data: Any) -> bool:
+        if isinstance(data, dict):
+            if isinstance(data.get("articleBody"), str) and data.get("articleBody", "").strip():
+                return True
+            return any(self._json_data_has_article_body(child) for child in data.values())
+        if isinstance(data, list):
+            return any(self._json_data_has_article_body(child) for child in data)
+        return False
+
+    def _contains_rejected_text(self, text: str) -> bool:
+        sample = (text or "")[:12000].lower()
+        return any(marker in sample for marker in self.REJECTED_TEXT_MARKERS)
+
+    @staticmethod
+    def _is_summary_path(path: tuple[str, ...]) -> bool:
+        return any(part.lower() in {"description", "summary", "dek", "seo", "metadata", "meta"} for part in path)
+
+    @staticmethod
+    def _extract_reader_title(text: str) -> str:
+        match = re.search(r"^Title:\s*(.+)$", text or "", re.M)
+        return match.group(1).strip() if match else ""
+
+    @staticmethod
+    def _clean_structured_text(text: str) -> str:
+        text = unescape(text or "")
+        text = re.sub(r"<\s*(?:p|br|div|li|section|article|h[1-6])\b[^>]*>", "\n", text, flags=re.I)
+        text = re.sub(r"<[^>]+>", " ", text)
+        text = re.sub(r"[ \t\f\v]+", " ", text)
+        text = re.sub(r"\n\s+", "\n", text)
+        text = re.sub(r"\n{3,}", "\n\n", text)
+        return text.strip()
 
     @staticmethod
     def _clean_reader_text(text: str) -> str:

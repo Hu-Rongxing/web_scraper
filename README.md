@@ -4,8 +4,8 @@
 
 ## What it does
 
-- `ContentExtractor` extracts article text with `trafilatura`, then falls back to Scrapling-based text cleanup.
-- `LinkExtractor` extracts article links from list pages with Scrapling DOM selectors.
+- `ContentExtractor` extracts complete article bodies from reader/plain-text responses, structured JSON-LD/front-end state, `trafilatura`, then Scrapling-based text cleanup.
+- `LinkExtractor` extracts article links from list pages with Scrapling DOM selectors and optional article URL/title filters.
 - `SmartFetcher` wraps the pipeline stack for fetching, rendering, proxy use, and fallback handling.
 - `PipelineManager` tries browser-like HTTP clients first, then lazy browser pools, then reader/archive/AMP/print/referer fallbacks with per-method diagnostics.
 
@@ -25,7 +25,12 @@ from web_scraper import SmartFetcher
 async def main():
     async with SmartFetcher() as fetcher:
         article = await fetcher.fetch("https://example.com/article")
-        links = await fetcher.fetch_links("https://example.com/news")
+        links = await fetcher.fetch_links(
+            "https://example.com/news",
+            css=["a.headline[href]", "article a[href]"],
+            require_url_pattern=r"/news/\d{4}/\d{2}/\d{2}/[^/]+\.html$",
+            reject_url_contains=["/newsletter/", "/video/"],
+        )
         print(article.title)
         print(len(article.content))
         print(len(links))
@@ -69,6 +74,15 @@ python examples/probe_v7_failed_sites.py --site wsj --timeout-sec 20
 ```
 
 Reports are written to `docs/probe-results/`.
+
+## v7-Learned Extraction Guards
+
+The extractor applies lessons learned from separate v7 monitor probes without any runtime dependency on that project:
+
+- JSON-LD is accepted as full text only when it exposes `articleBody`.
+- Next.js/Nuxt/Apollo-style script state can provide complete bodies from keys such as `articleBody`, `fullText`, `nodeTree`, `paragraphs`, or `blocks`.
+- Reader warning shells, login prompts, paywall previews, and challenge pages remain rejected diagnostics instead of article content.
+- List-page discovery can require terminal article URL patterns and reject known channel roots, newsletters, videos, or promotional titles before detail fetches are created.
 
 ## Notes
 

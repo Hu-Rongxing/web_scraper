@@ -89,6 +89,102 @@ def test_content_extractor_accepts_reader_plain_text():
     assert "article body text" in result.content
 
 
+def test_content_extractor_rejects_reader_paywall_teaser():
+    reader_text = (
+        "Title: Example Story\n"
+        "URL Source: https://example.com/story\n"
+        "Markdown Content:\n\n"
+        "Continue with a free trial to read this story.\n"
+        f"{LONG_PARAGRAPH}\n\n{LONG_PARAGRAPH}\n"
+    )
+    result = ContentExtractor(strategy="trafilatura").extract(reader_text, "https://example.com/story")
+
+    assert result.method == "reader_plain_text_rejected"
+    assert result.content == ""
+
+
+def test_content_extractor_prefers_json_ld_article_body():
+    html = f"""
+    <html>
+      <head>
+        <script type="application/ld+json">
+        {{
+          "@context": "https://schema.org",
+          "@type": "NewsArticle",
+          "headline": "Structured Headline",
+          "datePublished": "2026-06-15T08:00:00Z",
+          "description": "Short teaser only.",
+          "articleBody": "{LONG_PARAGRAPH}"
+        }}
+        </script>
+      </head>
+      <body><article><p>Short body.</p></article></body>
+    </html>
+    """
+    result = ContentExtractor(strategy="trafilatura").extract(html, "https://example.com/structured")
+
+    assert result.method == "json_ld"
+    assert result.title == "Structured Headline"
+    assert "article body text" in result.content
+    assert result.date == "2026-06-15T08:00:00Z"
+
+
+def test_content_extractor_does_not_accept_json_ld_description_as_body(monkeypatch):
+    if content_extractor.trafilatura is None:
+        pytest.skip("trafilatura is not installed")
+
+    html = f"""
+    <html>
+      <head>
+        <title>Description Only</title>
+        <script type="application/ld+json">
+        {{
+          "@context": "https://schema.org",
+          "@type": "NewsArticle",
+          "headline": "Description Only",
+          "description": "{LONG_PARAGRAPH}"
+        }}
+        </script>
+      </head>
+      <body><main><p>Short teaser.</p></main></body>
+    </html>
+    """
+    monkeypatch.setattr(content_extractor.trafilatura, "extract", lambda *args, **kwargs: "")
+    monkeypatch.setattr(content_extractor.trafilatura, "extract_metadata", lambda *args, **kwargs: None)
+
+    result = ContentExtractor(strategy="trafilatura").extract(html, "https://example.com/teaser")
+
+    assert result.method == "trafilatura_short"
+    assert result.content == ""
+
+
+def test_content_extractor_reads_next_data_article_body():
+    html = f"""
+    <html>
+      <head>
+        <script id="__NEXT_DATA__" type="application/json">
+        {{
+          "props": {{
+            "pageProps": {{
+              "story": {{
+                "title": "Next Data Story",
+                "articleBody": "{LONG_PARAGRAPH}"
+              }}
+            }}
+          }}
+        }}
+        </script>
+      </head>
+      <body><div id="__next"></div></body>
+    </html>
+    """
+    result = ContentExtractor(strategy="trafilatura").extract(html, "https://example.com/next")
+
+    assert result.method == "script_state:__next_data__"
+    assert result.title == "Next Data Story"
+    assert "article body text" in result.content
+
+
 def test_pipeline_manager_jina_reader_variants():
     manager = PipelineManager()
     urls = manager._jina_reader_urls("https://www.ft.com/content/a7f4246d-9ae2-4f7b-90af-e5a53c52203b?foo=bar")
@@ -144,6 +240,29 @@ def test_link_extractor_uses_scrapling_dom():
     assert len(links) == 1
     assert links[0].url == "https://example.com/a"
     assert links[0].title == "First article headline"
+
+
+def test_link_extractor_filters_article_urls_and_titles():
+    html = """
+    <a class="headline" href="/news/2026/06/15/story.html">Valid article headline</a>
+    <a class="headline" href="/news/">Channel root</a>
+    <a class="headline" href="/newsletter/signup">Newsletter signup</a>
+    <a class="fallback" href="/news/2026/06/15/second.html">Second article headline</a>
+    """
+    links = LinkExtractor().extract(
+        html,
+        "https://example.com/news",
+        css=["a:not(", "a.headline[href]", "a.fallback[href]"],
+        require_url_pattern=r"/news/\d{4}/\d{2}/\d{2}/[^/]+\.html$",
+        reject_url_contains=["newsletter"],
+        reject_title_patterns=[r"Channel root"],
+        min_title_length=5,
+    )
+
+    assert [link.url for link in links] == [
+        "https://example.com/news/2026/06/15/story.html",
+        "https://example.com/news/2026/06/15/second.html",
+    ]
 
 
 def test_pipeline_proxy_pool_round_robins_fixed_entries():

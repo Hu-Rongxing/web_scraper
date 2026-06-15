@@ -31,3 +31,21 @@ This document records representative live probes against URLs that failed in the
 - Keep the improved generic fallback order in `PipelineManager`: browser-like HTTP, lazy browser pools, Jina reader variants, AMP/print variants, referer variants, archives, and cache attempts.
 - For still-blocked Dow Jones and Reuters-family targets, future work should test authorized/licensed feeds, stable regional proxies, persistent browser sessions, and site-specific allowed mirrors.
 - Do not weaken global success criteria: challenge pages, login prompts, paywall teasers, and reader warning shells must remain failed results.
+
+## 2026-06-15 web_scraper Updates
+
+The following generic safeguards were moved into `web_scraper` based on the
+separate v7 monitor findings. They are implemented directly in this repository
+and do not import or read `monitor_v7` runtime code or configuration.
+
+- `ContentExtractor` tries complete structured bodies before `trafilatura`.
+  JSON-LD requires `articleBody`; description-only JSON-LD remains a teaser and
+  is not accepted as full text.
+- Front-end script state can supply article bodies from `articleBody`,
+  `fullText`, `nodeTree`, `paragraphs`, or `blocks`, covering Next.js-like
+  pages where the rendered DOM is sparse.
+- Reader/plain-text extraction rejects warning shells, login prompts, challenge
+  pages, and paywall previews before they can satisfy the length gate.
+- `LinkExtractor` now accepts ordered selector lists plus URL/title filters, so
+  callers can keep channel roots, newsletters, videos, and other non-article
+  links out of detail extraction.
