@@ -209,7 +209,42 @@ def test_pipeline_manager_reader_failure_detection():
     assert manager._is_reader_failure('{"code":451,"message":"Anonymous access to domain www.reuters.com blocked"}')
     assert manager._is_reader_failure("Warning: Target URL returned error 401")
     assert manager._is_reader_failure("Please enable JS and disable any ad blocker")
+    assert manager._is_reader_failure("Title: Wayback Machine\nCalendar View\nSaved from example.com")
     assert not manager._is_reader_failure("Title: Example\nMarkdown Content:\n\nBody text only.")
+
+
+def test_pipeline_manager_rejects_archive_search_shell():
+    manager = PipelineManager()
+    extracted = ExtractedContent(
+        title="Wayback Machine",
+        content="Calendar View Saved from example.com. " * 30,
+    )
+
+    error = manager._p5_quality_error(
+        "https://www.wsj.com/finance/story",
+        "https://web.archive.org/web/20240000000000*/https://www.wsj.com/finance/story",
+        "archive_org",
+        extracted,
+    )
+
+    assert error == "archive/search shell"
+
+
+def test_pipeline_manager_rejects_short_archive_result():
+    manager = PipelineManager()
+    extracted = ExtractedContent(
+        title="Source Story",
+        content="wsj.com short archive snippet. " * 12,
+    )
+
+    error = manager._p5_quality_error(
+        "https://www.wsj.com/finance/story",
+        "https://web.archive.org/web/20240101000000/https://www.wsj.com/finance/story",
+        "archive_org",
+        extracted,
+    )
+
+    assert error.startswith("archive content too short")
 
 
 def test_pipeline_manager_variant_urls():
@@ -262,6 +297,27 @@ def test_link_extractor_filters_article_urls_and_titles():
     assert [link.url for link in links] == [
         "https://example.com/news/2026/06/15/story.html",
         "https://example.com/news/2026/06/15/second.html",
+    ]
+
+
+def test_link_extractor_include_domains_allows_subdomains():
+    html = """
+    <a href="https://finance.jrj.com.cn/story.html">Finance headline</a>
+    <a href="https://stock.jrj.com.cn/story.html">Stock headline</a>
+    <a href="https://example.com/story.html">Other headline</a>
+    """
+
+    links = LinkExtractor().extract(
+        html,
+        "https://www.jrj.com.cn/",
+        same_domain=False,
+        include_domains=["jrj.com.cn"],
+        min_title_length=5,
+    )
+
+    assert [link.url for link in links] == [
+        "https://finance.jrj.com.cn/story.html",
+        "https://stock.jrj.com.cn/story.html",
     ]
 
 

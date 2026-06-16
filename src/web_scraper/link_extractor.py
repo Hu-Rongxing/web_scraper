@@ -64,10 +64,10 @@ class LinkExtractor:
             if parsed.scheme not in {"http", "https"} or not parsed.netloc:
                 continue
 
-            parsed_domain = self._registrable_domain(parsed.netloc)
-            if same_domain and base_domain and parsed_domain != base_domain:
+            parsed_domain = self._host(parsed.netloc)
+            if same_domain and base_domain and not self._domain_matches(parsed_domain, base_domain):
                 continue
-            if allowed_domains and not any(parsed.netloc.endswith(d) for d in allowed_domains):
+            if allowed_domains and not any(self._domain_matches(parsed_domain, self._host(d)) for d in allowed_domains):
                 continue
 
             clean_url = parsed._replace(query="", fragment="").geturl()
@@ -109,7 +109,15 @@ class LinkExtractor:
 
     @staticmethod
     def _registrable_domain(netloc: str) -> str:
+        return LinkExtractor._host(netloc)
+
+    @staticmethod
+    def _host(netloc: str) -> str:
         host = netloc.split("@")[-1].split(":")[0].lower()
         if host.startswith("www."):
             host = host[4:]
         return host
+
+    @staticmethod
+    def _domain_matches(host: str, domain: str) -> bool:
+        return host == domain or host.endswith(f".{domain}")

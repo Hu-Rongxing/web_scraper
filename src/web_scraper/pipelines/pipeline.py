@@ -446,7 +446,8 @@ class PipelineManager:
                 continue
             if result.success:
                 extracted = ContentExtractor(strategy=extract_strategy).extract(result.html, url)
-                if len(extracted.content) >= MIN_CONTENT_LENGTH:
+                quality_error = self._p5_quality_error(url, result.final_url, name, extracted)
+                if not quality_error:
                     result.title = extracted.title
                     result.content = extracted.content
                     result.author = extracted.author
@@ -458,7 +459,7 @@ class PipelineManager:
                     result.elapsed_ms = (time.monotonic() - t0) * 1000
                     result.meta.update({"bypass_method": name, "wall_type": wall_type})
                     return result
-                errors[name] = f"content too short ({len(extracted.content)} chars)"
+                errors[name] = quality_error
             else:
                 errors[name] = result.error or "no usable body"
 
@@ -675,6 +676,12 @@ class PipelineManager:
             "warning: target url returned error",
             "securitycompromiseerror",
             "anonymous access to domain",
+            "title: wayback machine",
+            "wayback machine",
+            "calendar view",
+            "saved from",
+            "hubble-focused crawl",
+            "webcache.googleusercontent.com",
             "title: just a moment",
             "checking your browser",
             "please enable js and disable any ad blocker",
@@ -684,6 +691,34 @@ class PipelineManager:
             "ddos attack suspected",
         ]
         return any(marker in sample for marker in markers) or bool(re.search(r'"code"\s*:\s*(401|403|451|429)', sample))
+
+    def _p5_quality_error(
+        self,
+        original_url: str,
+        final_url: str,
+        bypass_method: str,
+        extracted,
+    ) -> str:
+        content_length = len(extracted.content or "")
+        if content_length < MIN_CONTENT_LENGTH:
+            return f"content too short ({content_length} chars)"
+
+        title = (extracted.title or "").strip().lower()
+        content_sample = (extracted.content or "")[:3000].lower()
+        if "wayback machine" in title or "wayback machine" in content_sample:
+            return "archive/search shell"
+        if "webcache.googleusercontent.com" in content_sample:
+            return "cache shell"
+
+        if bypass_method in {"archive_org", "archive_today", "google_cache"}:
+            original_domain = self._registrable_domain(urlparse(original_url).netloc)
+            text = f"{final_url}\n{extracted.title}\n{extracted.content[:3000]}".lower()
+            if original_domain and original_domain not in text:
+                return f"archive result not tied to source domain ({original_domain})"
+            if content_length < max(MIN_CONTENT_LENGTH * 3, 600):
+                return f"archive content too short ({content_length} chars)"
+
+        return ""
 
     def _detect_paywall(self, result: PipelineResult) -> bool:
         sample = (result.html or "")[:12000].lower()
@@ -701,6 +736,13 @@ class PipelineManager:
             "Upgrade-Insecure-Requests": "1",
             "User-Agent": USER_AGENT,
         }
+
+    @staticmethod
+    def _registrable_domain(netloc: str) -> str:
+        host = netloc.split("@")[-1].split(":")[0].lower()
+        if host.startswith("www."):
+            host = host[4:]
+        return host
 
     @staticmethod
     def _decode_bytes(data: bytes, content_encoding: str = "") -> str:
